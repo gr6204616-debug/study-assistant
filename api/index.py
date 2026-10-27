@@ -2,7 +2,8 @@ import hmac
 import os
 from datetime import date
 from pathlib import Path
-
+import json
+import urllib.request
 import psycopg2
 import psycopg2.extras
 from flask import Flask, Response, jsonify, request
@@ -140,6 +141,14 @@ def lectures_add():
         "INSERT INTO lectures (subject_id, title, file_url, type) VALUES (%s,%s,%s,%s) RETURNING id",
         (subject, title, url, d.get("type")),
     )[0]
+    
+    # --- إرسال الإشعار لجروب تيليجرام ---
+    try:
+        msg = f"📚 <b>تمت إضافة مادة جديدة</b>\n\nالمادة: {subject}\nالعنوان: {title}\n<a href='{url}'>اضغط هنا لفتح الملف</a>"
+        send_telegram_notification(msg)
+    except Exception:
+        pass
+        
     return jsonify(row)
 
 
@@ -277,8 +286,15 @@ def messages_add():
         return jsonify({"error": "الرسالة فارغة"}), 400
     when = str(d.get("date") or date.today().isoformat())[:30]
     run("INSERT INTO messages (text, date) VALUES (%s,%s)", (text, when), fetch=False)
-    return jsonify({"ok": True})
+    
+    # --- إرسال الإشعار لجروب تيليجرام ---
+    try:
+        msg = f"📣 <b>تبليغ جديد للدفعة ({when})</b>\n\n{text}"
+        send_telegram_notification(msg)
+    except Exception:
+        pass
 
+    return jsonify({"ok": True})
 
 @app.delete("/api/messages/<int:m_id>")
 def messages_delete(m_id):
@@ -287,3 +303,24 @@ def messages_delete(m_id):
         return denied
     run("DELETE FROM messages WHERE id = %s", (m_id,), fetch=False)
     return jsonify({"ok": True})
+def send_telegram_notification(message):
+    token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    chat_id = os.environ.get("TELEGRAM_GROUP_CHAT_ID")
+    
+    # إذا نسينا المتغيرات في Vercel، الدالة تتوقف بصمت دون تخريب الموقع
+    if not token or not chat_id:
+        return
+    
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+    payload = json.dumps({
+        "chat_id": chat_id,
+        "text": message,
+        "parse_mode": "HTML"
+    }).encode('utf-8')
+    
+    req = urllib.request.Request(url, data=payload, headers={'Content-Type': 'application/json'})
+    
+    try:
+        urllib.request.urlopen(req, timeout=5) # مهلة 5 ثوانٍ كي لا يتجمد الموقع
+    except Exception as e:
+        app.logger.error(f"فشل إرسال إشعار تيليجرام: {e}")

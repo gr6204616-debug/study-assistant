@@ -94,12 +94,55 @@
         }
         .modal-header { font-size: 20px; font-weight: bold; margin-bottom: 20px; color: white; display: flex; justify-content: space-between; }
         .close-modal { cursor: pointer; color: var(--text-muted); font-size: 24px; border: none; background: none; }
+
+        /* ---- ملفات وشروحات ---- */
+        .toolbar { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;
+            background: rgba(59,130,246,0.07); border: 1px dashed var(--primary); border-radius: 12px; padding: 12px 16px; margin-bottom: 16px; }
+        .toolbar-info { color: var(--text-muted); font-weight: 500; }
+        .btn-add { border: none; color: #fff; padding: 10px 20px; border-radius: 10px; cursor: pointer; font-weight: 700; font-size: 15px; transition: 0.2s; }
+        .btn-add:hover { transform: translateY(-1px); filter: brightness(1.1); }
+        .btn-add-file { background: var(--primary); }
+        .btn-add-video { background: var(--danger); }
+        .media-item { background: var(--item-bg); padding: 14px 16px; border-radius: 12px; border: 1px solid var(--border);
+            display: flex; align-items: center; gap: 14px; margin-bottom: 12px; flex-wrap: wrap; }
+        .media-icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 24px; flex-shrink: 0; }
+        .media-info { flex: 1; min-width: 150px; }
+        .media-title { font-weight: 700; font-size: 16px; color: #fff; word-break: break-word; }
+        .media-meta { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+        .media-actions { display: flex; gap: 8px; align-items: center; }
+        .act-open { color: #fff; padding: 8px 18px; border-radius: 8px; text-decoration: none; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+        .act-icon { background: transparent; border: 1px solid var(--border); color: var(--text-main); padding: 8px 11px; border-radius: 8px; cursor: pointer; transition: 0.2s; }
+        .act-icon:hover { background: var(--border); }
+        .role-badge { font-size: 12px; background: rgba(245,158,11,0.15); color: var(--warning); padding: 2px 10px; border-radius: 12px; margin-right: 8px; }
+
+        /* ---- الأسئلة والمراسلة ---- */
+        .qa-compose { background: var(--item-bg); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 20px; }
+        .qa-compose-admin { border-color: var(--warning); background: rgba(245,158,11,0.05); }
+        .qa-compose-title { font-weight: 700; margin-bottom: 10px; }
+        textarea.input-field { resize: vertical; min-height: 70px; }
+        .thread { background: var(--item-bg); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 14px; }
+        .thread-admin { border-color: var(--warning); }
+        .thread-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+        .who { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .when { font-size: 12px; color: var(--text-muted); }
+        .thread-text { color: #fff; white-space: pre-wrap; word-break: break-word; margin-bottom: 10px; }
+        .chip { font-size: 12px; padding: 2px 10px; border-radius: 12px; font-weight: 500; }
+        .chip-ok { background: rgba(16,185,129,0.15); color: var(--success); }
+        .chip-wait { background: rgba(245,158,11,0.15); color: var(--warning); }
+        .chip-admin { background: rgba(245,158,11,0.2); color: var(--warning); }
+        .reply { border-radius: 8px; padding: 10px 12px; margin: 8px 0; white-space: pre-wrap; word-break: break-word; position: relative; }
+        .reply-admin { background: rgba(16,185,129,0.1); border-right: 3px solid var(--success); }
+        .reply-student { background: rgba(59,130,246,0.08); border-right: 3px solid var(--primary); }
+        .reply .who { font-size: 13px; margin-bottom: 3px; }
+        .reply-box { display: flex; gap: 8px; margin-top: 10px; }
+        .reply-box .input-field { margin: 0; padding: 8px 10px; }
+        .mini-del { background: none; border: none; color: var(--danger); cursor: pointer; font-size: 14px; }
     </style>
 </head>
 <body>
 
     <header id="main-header" style="display: none;">
-        <div class="logo">مساعد دراسي 🎓</div>
+        <div class="logo">مساعد دراسي 🎓<span id="role-badge" class="role-badge" style="display:none;"></span></div>
         <nav>
             <button class="nav-btn active" data-tab="subjects" onclick="switchMainTab('subjects')">المواد الدراسية</button>
             <button class="nav-btn" data-tab="batch" onclick="switchMainTab('batch')">الدفعة</button>
@@ -121,7 +164,7 @@
             <input type="text" id="modal-title-input" class="input-field" placeholder="مثال: المحاضرة الأولى...">
 
             <label style="color: var(--text-muted); display: block; margin-bottom: 8px;">الرابط (URL):</label>
-            <input type="url" id="modal-url-input" class="input-field" placeholder="انسخ والصق الرابط هنا..." dir="ltr">
+            <input type="url" id="modal-url-input" class="input-field" placeholder="انسخ والصق الرابط هنا..." dir="ltr" onkeydown="if(event.key==='Enter') submitContent()">
 
             <button class="btn" id="save-btn" style="margin-top: 15px;" onclick="submitContent()">حفظ ونشر</button>
         </div>
@@ -171,6 +214,9 @@
             }
             if (currentUser) {
                 document.getElementById('main-header').style.display = 'flex';
+                const rb = document.getElementById('role-badge');
+                rb.textContent = isAdmin() ? '👨‍🏫 أدمن' : '';
+                rb.style.display = isAdmin() ? 'inline-block' : 'none';
                 render();
             } else {
                 document.getElementById('main-header').style.display = 'none';
@@ -184,6 +230,8 @@
                     <div style="font-size: 50px; margin-bottom: 10px;">🎓</div>
                     <h2 style="margin-bottom: 20px;">مساعد دراسي</h2>
 
+                    <input type="text" id="student-name" class="input-field" placeholder="اسمك (اختياري)" maxlength="40"
+                           onkeydown="if(event.key==='Enter') studentLogin()">
                     <button class="btn" onclick="studentLogin()">دخول كطالب</button>
 
                     <hr style="border-color: var(--border); margin: 15px 0;">
@@ -196,7 +244,8 @@
         }
 
         function studentLogin() {
-            currentUser = { role: 'student', name: 'طالب' };
+            const sn = (document.getElementById('student-name')?.value || '').trim().slice(0, 40);
+            currentUser = { role: 'student', name: sn || 'طالب' };
             localStorage.setItem('batchUser', JSON.stringify(currentUser));
             currentTab = 'subjects';
             init();
@@ -211,7 +260,11 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ password })
                 });
-                if (!res.ok) return alert('كلمة المرور خاطئة');
+                if (res.status === 401) return alert('كلمة المرور خاطئة');
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    return alert('خطأ في الخادم: ' + (err.error || res.status));
+                }
                 currentUser = await res.json();
                 localStorage.setItem('batchUser', JSON.stringify(currentUser));
                 currentTab = 'subjects';
@@ -248,6 +301,7 @@
             app.innerHTML = `<div class="grid-container">` + SUBJECTS.map(sub => `
                 <div class="card" style="text-align: center; border-top: 4px solid var(--primary); position: relative;">
                     <span id="badge-${sub.id}" style="display: none; position: absolute; top: 10px; right: 10px; background: var(--danger); width: 14px; height: 14px; border-radius: 50%; box-shadow: 0 0 8px var(--danger);"></span>
+                    <span id="pend-${sub.id}" style="display: none; position: absolute; top: 10px; left: 10px; background: var(--warning); color: #0f172a; padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: 700;"></span>
                     <div style="font-size: 45px; margin-bottom: 10px;">${sub.icon}</div>
                     <div class="card-title" style="margin-bottom: 15px;">${sub.name}</div>
                     <button class="btn" onclick="openSubject('${sub.id}')">فتح المادة</button>
@@ -263,6 +317,16 @@
                     if (badge && currentMax > storedMax) badge.style.display = 'block';
                 });
             }).catch(() => console.log('فشل فحص التحديثات'));
+
+            if (isAdmin()) {
+                api('/api/admin/pending').then(p => {
+                    SUBJECTS.forEach(sub => {
+                        const el = document.getElementById(`pend-${sub.id}`);
+                        const n = p[sub.id] || 0;
+                        if (el && n > 0) { el.textContent = `❓ ${n} بانتظار الرد`; el.style.display = 'inline-block'; }
+                    });
+                }).catch(() => {});
+            }
         }
 
         function renderBatch(app) {
@@ -342,57 +406,106 @@
         }
 
         // ---------- الملفات والشروحات ----------
+        window.lectureMap = {};
+
+        function linkKind(url, isVideo) {
+            const u = String(url || '').toLowerCase();
+            if (/youtube\.com|youtu\.be/.test(u)) return { icon: '▶️', label: 'يوتيوب', color: '#ef4444' };
+            if (/drive\.google|docs\.google/.test(u)) return { icon: '📁', label: 'Google Drive', color: '#22c55e' };
+            if (/t\.me|telegram/.test(u)) return { icon: '✈️', label: 'تلغرام', color: '#0ea5e9' };
+            if (/\.pdf(\?|#|$)/.test(u)) return { icon: '📕', label: 'ملف PDF', color: '#3b82f6' };
+            if (/\.(pptx?|docx?|xlsx?)(\?|#|$)/.test(u)) return { icon: '📝', label: 'مستند', color: '#8b5cf6' };
+            return isVideo
+                ? { icon: '🎬', label: 'فيديو', color: '#ef4444' }
+                : { icon: '📄', label: 'ملف', color: '#3b82f6' };
+        }
+
+        function fmtTime(iso) {
+            try { return new Date(iso).toLocaleString('ar-IQ', { dateStyle: 'short', timeStyle: 'short' }); }
+            catch (e) { return ''; }
+        }
+
         function fetchMedia(mediaType) {
             const container = document.getElementById('sub-view-container');
             container.innerHTML = '<div class="empty-state">⏳ جاري الاتصال بالخادم...</div>';
+            const isVid = mediaType === 'videos';
 
             api(`/api/lectures/${encodeURIComponent(currentSubjectId)}`)
             .then(data => {
-                const isVideo = t => String(t).startsWith('[VIDEO]');
-                const filtered = (data || []).filter(item => mediaType === 'videos' ? isVideo(item.title) : !isVideo(item.title));
-                const emoji = mediaType === 'files' ? '📖' : '▶️';
-                const color = mediaType === 'files' ? 'var(--primary)' : 'var(--danger)';
-                const emptyMsg = mediaType === 'files' ? 'لا توجد ملفات دراسية حتى الآن.' : 'لا توجد شروحات فيديو حتى الآن.';
+                const isVideoTitle = t => String(t).startsWith('[VIDEO]');
+                const list = (data || []).filter(item => isVid ? isVideoTitle(item.title) : !isVideoTitle(item.title));
+                list.forEach(item => { window.lectureMap[item.id] = item; });
 
-                if (filtered.length === 0) {
-                    container.innerHTML = `<div class="empty-state">${emptyMsg}</div>` + getAdminControls(mediaType);
-                    return;
-                }
-                container.innerHTML = filtered.map(item => createItemHTML(item, emoji, color)).join('') + getAdminControls(mediaType);
+                const toolbar = isAdmin() ? `
+                    <div class="toolbar">
+                        <div class="toolbar-info">${isVid ? '🎬' : '📚'} ${list.length} ${isVid ? 'شرح فيديو' : 'ملف دراسي'}</div>
+                        <button class="btn-add ${isVid ? 'btn-add-video' : 'btn-add-file'}" onclick="openAddModal('${isVid ? 'video' : 'pdf'}')">
+                            ➕ ${isVid ? 'إضافة فيديو' : 'إضافة ملف'}
+                        </button>
+                    </div>` : '';
+
+                const body = list.length === 0
+                    ? `<div class="empty-state">${isVid ? '🎬 لا توجد شروحات فيديو حتى الآن.' : '📂 لا توجد ملفات دراسية حتى الآن.'}</div>`
+                    : list.map(item => createItemHTML(item, isVid)).join('');
+
+                container.innerHTML = toolbar + body;
             })
             .catch(() => container.innerHTML = '<div class="empty-state" style="color: red;">❌ فشل الاتصال.</div>');
         }
 
-        function createItemHTML(item, emoji, color) {
-            const cleanTitle = esc(item.title.replace('[VIDEO]', '').replace('[PDF]', ''));
+        function createItemHTML(item, isVid) {
+            const kind = linkKind(item.file_url, isVid);
+            const title = esc(item.title.replace(/^\[(VIDEO|PDF)\]/, ''));
+            const id = Number(item.id);
             return `
-                <div style="background: var(--item-bg); padding: 15px 20px; border-radius: 8px; border: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 10px;">
-                    <div style="font-weight: bold; font-size: 16px; color: white;">${cleanTitle}</div>
-
-                    <div style="display: flex; gap: 10px; align-items: center;">
-                        ${isAdmin() ? `<button class="btn-delete" onclick="deleteLecture(${Number(item.id)})">🗑️</button>` : ''}
-                        <a href="${esc(safeUrl(item.file_url))}" target="_blank" rel="noopener noreferrer" style="background: ${color}; color: white; padding: 8px 20px; border-radius: 8px; text-decoration: none; font-weight: bold; display: flex; align-items: center; gap: 8px;">
-                            فتح ${emoji}
+                <div class="media-item">
+                    <div class="media-icon" style="background: ${kind.color}22; color: ${kind.color};">${kind.icon}</div>
+                    <div class="media-info">
+                        <div class="media-title">${title}</div>
+                        <div class="media-meta">${kind.label}</div>
+                    </div>
+                    <div class="media-actions">
+                        <a class="act-open" style="background: ${kind.color};" href="${esc(safeUrl(item.file_url))}" target="_blank" rel="noopener noreferrer">
+                            ${isVid ? '▶️ مشاهدة' : '📖 فتح'}
                         </a>
+                        <button class="act-icon" title="نسخ الرابط" onclick="copyLink(${id})">📋</button>
+                        ${isAdmin() ? `
+                            <button class="act-icon" title="تعديل العنوان" onclick="editLecture(${id})">✏️</button>
+                            <button class="btn-delete" title="حذف" onclick="deleteLecture(${id})">🗑️</button>
+                        ` : ''}
                     </div>
                 </div>
             `;
         }
 
-        function getAdminControls(mediaType) {
-            if (!isAdmin()) return '';
-            return mediaType === 'files'
-                ? `<div class="admin-panel"><button class="btn" style="background: var(--primary);" onclick="openAddModal('pdf')">+ إضافة ملف دراسي جديد (PDF)</button></div>`
-                : `<div class="admin-panel"><button class="btn" style="background: var(--danger);" onclick="openAddModal('video')">+ إضافة شرح يوتيوب جديد (Video)</button></div>`;
+        function copyLink(id) {
+            const item = window.lectureMap[id];
+            if (!item) return;
+            const done = () => alert('✅ تم نسخ الرابط');
+            if (navigator.clipboard) navigator.clipboard.writeText(item.file_url).then(done).catch(() => prompt('انسخ الرابط:', item.file_url));
+            else prompt('انسخ الرابط:', item.file_url);
+        }
+
+        function editLecture(id) {
+            const item = window.lectureMap[id];
+            if (!item) return;
+            const prefix = (item.title.match(/^\[(VIDEO|PDF)\]/) || [''])[0];
+            const current = item.title.slice(prefix.length);
+            const next = prompt('عنوان جديد:', current);
+            if (next === null || !next.trim()) return;
+            api(`/api/lectures/${id}`, 'PUT', { title: prefix + next.trim() })
+            .then(() => fetchMedia(activeSubTab))
+            .catch(() => alert('تعذر التعديل'));
         }
 
         function openAddModal(type) {
             document.getElementById('addModal').style.display = 'flex';
             document.getElementById('modal-type').value = type;
-            document.getElementById('modal-title').innerText = type === 'pdf' ? '📖 إضافة ملف دراسي' : '▶️ إضافة شرح يوتيوب';
+            document.getElementById('modal-title').innerText = type === 'pdf' ? '📖 إضافة ملف دراسي' : '▶️ إضافة شرح فيديو';
             document.getElementById('modal-title-input').value = '';
             document.getElementById('modal-url-input').value = '';
             document.getElementById('save-btn').style.background = type === 'pdf' ? 'var(--primary)' : 'var(--danger)';
+            setTimeout(() => document.getElementById('modal-title-input').focus(), 50);
         }
 
         function closeAddModal() {
@@ -432,62 +545,111 @@
             .catch(() => alert('تعذر الحذف'));
         }
 
-        // ---------- الأسئلة ----------
+        // ---------- الأسئلة والمراسلة ----------
         function fetchQA() {
             const container = document.getElementById('sub-view-container');
+            const admin = isAdmin();
             container.innerHTML = `
-                <div style="display: flex; gap: 10px; margin-bottom: 20px;">
-                    <input type="text" id="new-q-text" class="input-field" style="margin: 0;" placeholder="لديك سؤال حول المادة؟ اكتبه هنا..." maxlength="1000"
-                           onkeydown="if(event.key==='Enter') askQuestion()">
-                    <button class="btn btn-success" style="width: 120px;" onclick="askQuestion()">إرسال</button>
+                <div class="qa-compose ${admin ? 'qa-compose-admin' : ''}">
+                    <div class="qa-compose-title">${admin ? '📢 أرسل رسالة للطلاب في هذه المادة' : '❓ اطرح سؤالاً'}</div>
+                    <textarea id="new-q-text" class="input-field" rows="3" maxlength="1000"
+                        placeholder="${admin ? 'اكتب رسالة أو توجيه لطلاب هذه المادة...' : 'لديك سؤال حول المادة؟ اكتبه هنا...'}"></textarea>
+                    <div style="display: flex; gap: 10px;">
+                        <button class="btn ${admin ? 'btn-success' : ''}" onclick="askQuestion()">${admin ? '📢 نشر الرسالة' : '✉️ إرسال السؤال'}</button>
+                        <button class="btn btn-outline" style="width: auto;" onclick="fetchQA()">🔄 تحديث</button>
+                    </div>
                 </div>
-                <div id="qa-list"><div class="empty-state">⏳ جاري جلب الأسئلة...</div></div>
+                <div id="qa-list"><div class="empty-state">⏳ جاري جلب المحادثات...</div></div>
             `;
 
             api(`/api/questions/${encodeURIComponent(currentSubjectId)}`)
             .then(data => {
                 const qaList = document.getElementById('qa-list');
+                if (!qaList) return;
                 if (!data || data.length === 0) {
-                    qaList.innerHTML = '<div class="empty-state">لا توجد أسئلة لهذه المادة بعد. كن أول من يسأل!</div>';
+                    qaList.innerHTML = '<div class="empty-state">💬 لا توجد محادثات في هذه المادة بعد.</div>';
                     return;
                 }
-
-                qaList.innerHTML = data.map(q => `
-                    <div class="q-box">
-                        <div class="q-text">❓ سؤال: ${esc(q.q_text)}</div>
-                        ${q.a_text
-                            ? `<div class="a-text">💡 الجواب: ${esc(q.a_text)}</div>`
-                            : `<div style="color: var(--text-muted); font-size: 14px; margin-top: 5px;">⏳ بانتظار الإجابة...</div>`}
-                        ${(!q.a_text && isAdmin()) ? `
-                            <div style="display: flex; gap: 10px; margin-top: 15px;">
-                                <input type="text" id="ans-${q.id}" class="input-field" style="margin: 0; padding: 5px;" placeholder="اكتب إجابتك هنا...">
-                                <button class="btn" style="width: auto; padding: 5px 15px;" onclick="answerQuestion(${Number(q.id)})">إجابة</button>
-                            </div>
-                        ` : ''}
-                    </div>
-                `).join('');
+                qaList.innerHTML = data.map(threadHTML).join('');
             })
             .catch(() => {
                 const el = document.getElementById('qa-list');
-                if (el) el.innerHTML = '<div class="empty-state" style="color: red;">❌ فشل جلب الأسئلة.</div>';
+                if (el) el.innerHTML = '<div class="empty-state" style="color: red;">❌ فشل جلب المحادثات.</div>';
             });
+        }
+
+        function replyHTML(r) {
+            return `
+                <div class="reply ${r.is_admin ? 'reply-admin' : 'reply-student'}">
+                    <div class="who">
+                        ${r.is_admin ? '👨‍🏫' : '🧑‍🎓'} <b>${esc(r.author)}</b>
+                        <span class="when">${fmtTime(r.created_at)}</span>
+                        ${isAdmin() ? `<button class="mini-del" title="حذف الرد" onclick="deleteReply(${Number(r.id)})">🗑️</button>` : ''}
+                    </div>
+                    <div>${esc(r.text)}</div>
+                </div>
+            `;
+        }
+
+        function threadHTML(q) {
+            const admin = isAdmin();
+            const replies = q.replies || [];
+            const answered = !!q.a_text || replies.some(r => r.is_admin);
+            const chip = q.is_admin ? ''
+                : (answered ? '<span class="chip chip-ok">✅ تمت الإجابة</span>'
+                            : '<span class="chip chip-wait">⏳ بانتظار الإجابة</span>');
+            return `
+                <div class="thread ${q.is_admin ? 'thread-admin' : ''}">
+                    <div class="thread-head">
+                        <div class="who">
+                            ${q.is_admin ? '👨‍🏫' : '🧑‍🎓'} <b>${esc(q.asker || (q.is_admin ? 'الأدمن' : 'طالب'))}</b>
+                            ${q.is_admin ? '<span class="chip chip-admin">📢 رسالة من الأدمن</span>' : ''}
+                            <span class="when">${fmtTime(q.created_at)}</span>
+                        </div>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            ${chip}
+                            ${admin ? `<button class="btn-delete" title="حذف المحادثة" onclick="deleteQuestion(${Number(q.id)})">🗑️</button>` : ''}
+                        </div>
+                    </div>
+                    <div class="thread-text">${esc(q.q_text)}</div>
+                    ${q.a_text ? `<div class="reply reply-admin"><div class="who">👨‍🏫 <b>الأدمن</b></div><div>${esc(q.a_text)}</div></div>` : ''}
+                    ${replies.map(replyHTML).join('')}
+                    <div class="reply-box">
+                        <input type="text" id="reply-${q.id}" class="input-field" maxlength="2000"
+                               placeholder="${admin ? 'اكتب ردك على الطلاب...' : 'اكتب رداً...'}"
+                               onkeydown="if(event.key==='Enter') sendReply(${Number(q.id)})">
+                        <button class="btn ${admin ? 'btn-success' : ''}" style="width: auto;" onclick="sendReply(${Number(q.id)})">${admin ? '👨‍🏫 رد' : '↩️ رد'}</button>
+                    </div>
+                </div>
+            `;
         }
 
         function askQuestion() {
             const input = document.getElementById('new-q-text');
             const text = input.value.trim();
             if (!text) return;
-            api('/api/questions/add', 'POST', { subject_id: currentSubjectId, q_text: text })
+            api('/api/questions/add', 'POST', { subject_id: currentSubjectId, q_text: text, asker: currentUser.name })
             .then(() => fetchQA())
-            .catch(() => alert('تعذر إرسال السؤال'));
+            .catch(() => alert('تعذر الإرسال'));
         }
 
-        function answerQuestion(qId) {
-            const text = document.getElementById(`ans-${qId}`).value.trim();
+        function sendReply(qId) {
+            const input = document.getElementById(`reply-${qId}`);
+            const text = input.value.trim();
             if (!text) return;
-            api(`/api/questions/${qId}/answer`, 'POST', { a_text: text })
+            api(`/api/questions/${qId}/reply`, 'POST', { text, author: currentUser.name })
             .then(() => fetchQA())
-            .catch(() => alert('تعذر حفظ الإجابة'));
+            .catch(() => alert('تعذر إرسال الرد'));
+        }
+
+        function deleteQuestion(id) {
+            if (!confirm('حذف هذه المحادثة بكل ردودها؟')) return;
+            api(`/api/questions/${id}`, 'DELETE').then(() => fetchQA()).catch(() => alert('تعذر الحذف'));
+        }
+
+        function deleteReply(id) {
+            if (!confirm('حذف هذا الرد؟')) return;
+            api(`/api/replies/${id}`, 'DELETE').then(() => fetchQA()).catch(() => alert('تعذر الحذف'));
         }
 
         // ---------- الرسائل الأسبوعية ----------

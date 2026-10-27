@@ -33,6 +33,17 @@ CREATE TABLE IF NOT EXISTS messages (
     text TEXT NOT NULL,
     date TEXT NOT NULL
 );
+ALTER TABLE questions ADD COLUMN IF NOT EXISTS asker TEXT;
+ALTER TABLE questions ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE questions ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+CREATE TABLE IF NOT EXISTS replies (
+    id SERIAL PRIMARY KEY,
+    question_id INTEGER NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
+    is_admin BOOLEAN NOT NULL DEFAULT FALSE,
+    author TEXT NOT NULL,
+    text TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 """
 
 _schema_ready = False
@@ -141,10 +152,46 @@ def lectures_delete(lec_id):
     return jsonify({"ok": True})
 
 
-# ---------- الأسئلة ----------
+# ---------- تعديل عنوان محاضرة ----------
+@app.put("/api/lectures/<int:lec_id>")
+def lectures_update(lec_id):
+    denied = admin_only()
+    if denied:
+        return denied
+    title = str(body().get("title", "")).strip()[:300]
+    if not title:
+        return jsonify({"error": "العنوان فارغ"}), 400
+    run("UPDATE lectures SET title = %s WHERE id = %s", (title, lec_id), fetch=False)
+    return jsonify({"ok": True})
+
+
+# ---------- الأسئلة والمراسلة ----------
+def iso(rows):
+    for r in rows:
+        if r.get("created_at") is not None:
+            r["created_at"] = r["created_at"].isoformat()
+    return rows
+
+
 @app.get("/api/questions/<subject_id>")
 def questions_list(subject_id):
-    return jsonify(run("SELECT * FROM questions WHERE subject_id = %s ORDER BY id DESC", (subject_id,)))
+    qs = iso(run(
+        "SELECT id, subject_id, q_text, a_text, asker, is_admin, created_at "
+        "FROM questions WHERE subject_id = %s ORDER BY id DESC LIMIT 200",
+        (subject_id,),
+    ))
+    ids = [q["id"] for q in qs]
+    replies = iso(run(
+        "SELECT id, question_id, is_admin, author, text, created_at "
+        "FROM replies WHERE question_id = ANY(%s) ORDER BY id",
+        (ids,),
+    )) if ids else []
+    by_q = {}
+    for r in replies:
+        by_q.setdefault(r["question_id"], []).append(r)
+    for q in qs:
+        q["replies"] = by_q.get(q["id"], [])
+    return jsonify(qs)
 
 
 @app.post("/api/questions/add")
@@ -154,19 +201,39 @@ def questions_add():
     subject = str(d.get("subject_id", "")).strip()[:50]
     if not (text and subject):
         return jsonify({"error": "بيانات غير صالحة"}), 400
-    row = run("INSERT INTO questions (subject_id, q_text) VALUES (%s,%s) RETURNING id", (subject, text))[0]
+    admin = is_admin()
+    asker = "مهدي (الأدمن)" if admin else (str(d.get("asker", "")).strip()[:40] or "طالب")
+    row = run(
+        "INSERT INTO questions (subject_id, q_text, asker, is_admin) VALUES (%s,%s,%s,%s) RETURNING id",
+        (subject, text, asker, admin),
+    )[0]
     return jsonify(row)
 
 
-@app.post("/api/questions/<int:q_id>/answer")
-def questions_answer(q_id):
+@app.post("/api/questions/<int:q_id>/reply")
+def questions_reply(q_id):
+    d = body()
+    text = str(d.get("text", "")).strip()[:2000]
+    if not text:
+        return jsonify({"error": "الرد فارغ"}), 400
+    if not run("SELECT 1 FROM questions WHERE id = %s", (q_id,)):
+        return jsonify({"error": "السؤال غير موجود"}), 404
+    admin = is_admin()
+    author = "مهدي (الأدمن)" if admin else (str(d.get("author", "")).strip()[:40] or "طالب")
+    run(
+        "INSERT INTO replies (question_id, is_admin, author, text) VALUES (%s,%s,%s,%s)",
+        (q_id, admin, author, text),
+        fetch=False,
+    )
+    return jsonify({"ok": True})
+
+
+@app.delete("/api/replies/<int:r_id>")
+def replies_delete(r_id):
     denied = admin_only()
     if denied:
         return denied
-    text = str(body().get("a_text", "")).strip()[:2000]
-    if not text:
-        return jsonify({"error": "الجواب فارغ"}), 400
-    run("UPDATE questions SET a_text = %s WHERE id = %s", (text, q_id), fetch=False)
+    run("DELETE FROM replies WHERE id = %s", (r_id,), fetch=False)
     return jsonify({"ok": True})
 
 
@@ -177,6 +244,20 @@ def questions_delete(q_id):
         return denied
     run("DELETE FROM questions WHERE id = %s", (q_id,), fetch=False)
     return jsonify({"ok": True})
+
+
+@app.get("/api/admin/pending")
+def admin_pending():
+    denied = admin_only()
+    if denied:
+        return denied
+    rows = run(
+        "SELECT q.subject_id, COUNT(*) AS c FROM questions q "
+        "WHERE q.is_admin = FALSE AND (q.a_text IS NULL OR q.a_text = '') "
+        "AND NOT EXISTS (SELECT 1 FROM replies r WHERE r.question_id = q.id AND r.is_admin) "
+        "GROUP BY q.subject_id"
+    )
+    return jsonify({r["subject_id"]: r["c"] for r in rows})
 
 
 # ---------- الرسائل الأسبوعية ----------

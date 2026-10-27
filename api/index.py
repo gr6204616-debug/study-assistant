@@ -53,7 +53,7 @@ def run(sql, params=(), fetch=True):
 @app.before_request
 def ensure_schema():
     global _schema_ready
-    if not request.path.startswith("/api/"):
+    if not request.path.startswith("/api/") or request.path == "/api/login":
         return
     if not _schema_ready:
         run(SCHEMA, fetch=False)
@@ -93,6 +93,8 @@ def home():
 # ---------- تسجيل الدخول ----------
 @app.post("/api/login")
 def login():
+    if not ADMIN_PASSWORD:
+        return jsonify({"error": "ADMIN_PASSWORD غير مضبوط على الخادم"}), 500
     pw = str(body().get("password", ""))
     if ADMIN_PASSWORD and hmac.compare_digest(pw, ADMIN_PASSWORD):
         return jsonify({"role": "admin", "name": "مهدي", "token": ADMIN_TOKEN})

@@ -347,14 +347,12 @@ def send_telegram_reply(chat_id, message):
 def telegram_webhook():
     update = request.get_json(silent=True) or {}
     
-    # التأكد من وجود رسالة نصية قادمة
     if "message" in update and "text" in update["message"]:
         chat_id = update["message"]["chat"]["id"]
         text = update["message"]["text"]
         
         # 1. الرد على كلمات الجدول والتبليغات
         if any(keyword in text for keyword in ["باچر شعدنة", "شعدنا باجر", "الجدول", "تبليغ"]):
-            # جلب آخر رسالة أسبوعية من قاعدة البيانات
             rows = run("SELECT text, date FROM messages ORDER BY id DESC LIMIT 1")
             if rows:
                 msg = f"📅 <b>تبليغ الأسبوع ({rows[0]['date']}):</b>\n\n{rows[0]['text']}"
@@ -362,85 +360,64 @@ def telegram_webhook():
                 msg = "لا توجد تبليغات مسجلة حالياً."
             send_telegram_reply(chat_id, msg)
             
-        # 2. الرد على طلب الملفات والمحاضرات
         # 2. الرد على طلب الملفات والمحاضرات بشكل مخصص وبحث ذكي
         elif "ملف" in text or "محاضرة" in text or "محاضره" in text:
-            # تنظيف النص من الكلمات الشائعة التي قد تفسد البحث
             stop_words = ["اريد", "دز", "ممكن", "عطني", "دزلي", "ملف", "ملفات", "محاضرة", "محاضره", "رقم", "مادة", "عن"]
             words = text.split()
             keywords = [w for w in words if w not in stop_words]
             
-            # خريطة ترجمة المصطلحات (مهمة جداً لأن الطلاب يكتبون بالعربي وأنت قد تحفظ المادة بالإنجليزية)
-            # أضف هنا أي مصطلحات شائعة للدفعة
-            # خريطة ترجمة المصطلحات (تحويل كلام الطلاب العشوائي إلى أسماء المواد الرسمية)
             aliases = {
-                # لغة بايثون
                 "بايثون": "لغة بايثون",
                 "البايثون": "لغة بايثون",
                 "python": "لغة بايثون",
-                
-                # برمجة شيئية
                 "شيئية": "برمجة شيئية",
                 "الشيئية": "برمجة شيئية",
                 "oop": "برمجة شيئية",
-                
-                # التحليل العددي
                 "عددي": "التحليل العددي",
                 "العددي": "التحليل العددي",
                 "تحليل": "التحليل العددي",
                 "numerical": "التحليل العددي",
-                
-                # النظرية الاحتسابية
                 "احتسابية": "النظرية الاحتسابية",
                 "الاحتسابية": "النظرية الاحتسابية",
                 "نظرية": "النظرية الاحتسابية",
                 "computation": "النظرية الاحتسابية",
-                
-                # خوارزميات AI
                 "خوارزميات": "خوارزميات AI",
                 "الخوارزميات": "خوارزميات AI",
                 "ذكاء": "خوارزميات AI",
                 "ai": "خوارزميات AI",
-                
-                # اللغة العربية
                 "عربي": "اللغة العربية",
                 "عربية": "اللغة العربية",
                 "العربية": "اللغة العربية",
-                
-                # أرقام المحاضرات (تحويل النص إلى رقم لتسهيل البحث)
-                "الاولى": "1",
-                "الثانية": "2",
-                "الثالثة": "3",
-                "الرابعة": "4",
-                "الخامسة": "5",
-                "السادسة": "6",
-                "السابعة": "7",
-                "الثامنة": "8",
-                "التاسعة": "9",
-                "العاشرة": "10"
+                "1": "الأولى",
+                "الاولى": "الأولى",
+                "اولى": "الأولى",
+                "2": "الثانية",
+                "الثانية": "الثانية",
+                "ثانية": "الثانية",
+                "3": "الثالثة",
+                "الثالثة": "الثالثة",
+                "ثالثة": "الثالثة",
+                "4": "الرابعة",
+                "الرابعة": "الرابعة"
             }
             
-            # توحيد مصطلحات البحث بناءً على الخريطة
             search_terms = []
             for kw in keywords:
-                cleaned_kw = aliases.get(kw, kw) # إذا لم يجدها في الخريطة، يتركها كما هي
+                cleaned_kw = aliases.get(kw, kw)
                 if cleaned_kw not in search_terms:
                     search_terms.append(cleaned_kw)
                     
             if not search_terms:
-                send_telegram_reply(chat_id, "يرجى تحديد المادة التي تريدها بدقة، مثلاً: 'اريد ملف بايثون 1'")
+                send_telegram_reply(chat_id, "يرجى تحديد المادة التي تريدها بدقة، مثلاً: 'اريد ملف بايثون المحاضرة الاولى'")
             else:
-                # بناء استعلام قاعدة بيانات ديناميكي يبحث عن كل الكلمات معاً
                 query = "SELECT title, file_url, subject_id FROM lectures WHERE "
                 conditions = []
                 params = []
                 for term in search_terms:
-                    # نستخدم ILIKE للبحث غير الحساس لحالة الأحرف (يجد python أو Python)
                     conditions.append("(title ILIKE %s OR subject_id ILIKE %s)")
                     params.extend([f"%{term}%", f"%{term}%"])
                 
                 query += " AND ".join(conditions) + " ORDER BY id DESC LIMIT 3"
-                
                 rows = run(query, tuple(params))
                 
                 if rows:
@@ -452,3 +429,6 @@ def telegram_webhook():
                     msg = f"لم أجد أي ملف يطابق ( {joined_terms} ). تأكد من كتابة اسم المادة ورقم المحاضرة بشكل صحيح."
                 
                 send_telegram_reply(chat_id, msg)
+
+    # هذا السطر هو الذي تسبب بالخطأ لأنه كان مفقوداً أو موضوعاً بمسافة خاطئة
+    return jsonify({"ok": True})

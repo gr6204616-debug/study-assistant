@@ -450,7 +450,16 @@
 
                 container.innerHTML = toolbar + body;
             })
-            .catch(() => container.innerHTML = '<div class="empty-state" style="color: red;">❌ فشل الاتصال.</div>');
+            .catch(err => {
+                const addBtn = isAdmin() ? `
+                    <div class="toolbar">
+                        <div class="toolbar-info">${isVid ? '🎬' : '📚'} تعذر تحميل القائمة</div>
+                        <button class="btn-add ${isVid ? 'btn-add-video' : 'btn-add-file'}" onclick="openAddModal('${isVid ? 'video' : 'pdf'}')">
+                            ➕ ${isVid ? 'إضافة فيديو' : 'إضافة ملف'}
+                        </button>
+                    </div>` : '';
+                container.innerHTML = addBtn + `<div class="empty-state" style="color: red;">❌ فشل الاتصال بالخادم (${esc(err.message)}).<br><small>تحقق من ربط قاعدة البيانات في Vercel ثم أعد النشر.</small></div>`;
+            });
         }
 
         function createItemHTML(item, isVid) {

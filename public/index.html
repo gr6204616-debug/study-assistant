@@ -6,7 +6,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>مساعد دراسي | الذكاء الاصطناعي</title>
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
-    <!-- استدعاء مكتبة السحب والإفلات -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     <style>
         :root {
@@ -112,12 +111,14 @@
         .media-title { font-weight: 700; font-size: 16px; color: #fff; word-break: break-word; }
         .media-meta { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
         .media-actions { display: flex; gap: 8px; align-items: center; }
+        
+        /* التعديل هنا مهم جداً: استخدام _top بدلاً من _blank داخل التطبيق */
         .act-open { color: #fff; padding: 8px 18px; border-radius: 8px; text-decoration: none; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+        
         .act-icon { background: transparent; border: 1px solid var(--border); color: var(--text-main); padding: 8px 11px; border-radius: 8px; cursor: pointer; transition: 0.2s; }
         .act-icon:hover { background: var(--border); }
         .role-badge { font-size: 12px; background: rgba(245,158,11,0.15); color: var(--warning); padding: 2px 10px; border-radius: 12px; margin-right: 8px; }
         
-        /* تنسيقات السحب والإفلات */
         .drag-handle { cursor: grab; font-size: 20px; color: var(--text-muted); display: flex; align-items: center; justify-content: center; width: 30px; }
         .drag-handle:active { cursor: grabbing; color: var(--primary); }
         .sortable-ghost { opacity: 0.4; background: rgba(59, 130, 246, 0.1); border: 1px dashed var(--primary); }
@@ -178,7 +179,7 @@
     </div>
 
     <script>
-        const API_URL = "";   // نفس النطاق (Vercel)
+        const API_URL = "";   
         let currentUser = null;
         let currentTab = 'subjects';
         let currentSubjectId = null;
@@ -194,7 +195,6 @@
         ];
 
         // ---------- أدوات مساعدة ----------
-        // تهريب النصوص لمنع حقن الأكواد (XSS)
         const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
         const safeUrl = u => /^https?:\/\//i.test(u || '') ? u : '#';
         const isAdmin = () => currentUser && currentUser.role === 'admin';
@@ -213,7 +213,20 @@
             return res.json();
         }
 
-        // ---------- الدخول ----------
+        // ---------- الدخول وزر الرجوع للهاتف ----------
+        // هذا الكود هو المسؤول عن حل مشكلة خروج التطبيق عند ضغط زر الرجوع
+        window.addEventListener('popstate', function(event) {
+            if (event.state && event.state.page === 'subject') {
+                currentSubjectId = event.state.id;
+                currentTab = 'subject_details';
+            } else if (event.state && event.state.page === 'main') {
+                currentTab = event.state.tab;
+            } else {
+                currentTab = 'subjects';
+            }
+            render();
+        });
+
         function init() {
             const saved = localStorage.getItem('batchUser');
             if (saved) {
@@ -224,6 +237,11 @@
                 const rb = document.getElementById('role-badge');
                 rb.textContent = isAdmin() ? '👨‍🏫 أدمن' : '';
                 rb.style.display = isAdmin() ? 'inline-block' : 'none';
+                
+                // تسجيل الصفحة الرئيسية في تاريخ المتصفح لمنع الخروج المباشر
+                if (!history.state) {
+                    history.replaceState({ page: 'main', tab: 'subjects' }, '', '#subjects');
+                }
                 render();
             } else {
                 document.getElementById('main-header').style.display = 'none';
@@ -255,6 +273,7 @@
             currentUser = { role: 'student', name: sn || 'طالب' };
             localStorage.setItem('batchUser', JSON.stringify(currentUser));
             currentTab = 'subjects';
+            history.pushState({ page: 'main', tab: 'subjects' }, '', '#subjects');
             init();
         }
 
@@ -268,13 +287,12 @@
                     body: JSON.stringify({ password })
                 });
                 if (res.status === 401) return alert('كلمة المرور خاطئة');
-                if (!res.ok) {
-                    const err = await res.json().catch(() => ({}));
-                    return alert('خطأ في الخادم: ' + (err.error || res.status));
-                }
+                if (!res.ok) throw new Error();
+                
                 currentUser = await res.json();
                 localStorage.setItem('batchUser', JSON.stringify(currentUser));
                 currentTab = 'subjects';
+                history.pushState({ page: 'main', tab: 'subjects' }, '', '#subjects');
                 init();
             } catch (e) {
                 alert('تعذر الاتصال بالخادم');
@@ -284,12 +302,15 @@
         function logout() {
             localStorage.removeItem('batchUser');
             currentUser = null;
+            history.pushState(null, '', '/');
             init();
         }
 
         // ---------- التنقل ----------
         function switchMainTab(tab) {
             currentTab = tab;
+            // تسجيل الحركة في تاريخ التطبيق ليعمل زر الرجوع
+            history.pushState({ page: 'main', tab: tab }, '', '#' + tab);
             document.querySelectorAll('.nav-btn[data-tab]').forEach(btn =>
                 btn.classList.toggle('active', btn.dataset.tab === tab));
             render();
@@ -298,7 +319,6 @@
         function render() {
             const app = document.getElementById('app-content');
             app.innerHTML = '';
-
             if (currentTab === 'subjects') renderSubjects(app);
             else if (currentTab === 'batch') renderBatch(app);
             else if (currentTab === 'subject_details') renderSubjectDetails(app);
@@ -344,7 +364,6 @@
                     <div style="color: var(--text-muted); margin-top: 5px; font-size: 16px;">إشراف وإدارة: مهدي (ممثل الدفعة)</div>
 
                     <hr style="border-color: var(--border); margin: 20px 0;">
-
                     <p style="color: var(--text-muted); font-size: 15px; margin-bottom: 20px; line-height: 1.8;">
                         هذا النظام مخصص لتنظيم المحاضرات والأسئلة. جميع الشروحات والمواد تقدم للطلاب مجاناً ولا يتطلب النظام أي أكواد دعوة لتنزيل الملفات.
                     </p>
@@ -356,21 +375,19 @@
                     </div>
 
                     <div style="background: var(--bg-color); border: 1px solid var(--border); border-radius: 8px; padding: 15px; text-align: center;">
-                        <div style="color: var(--text-muted); margin-bottom: 10px;">إيميل الدكتور احمد (بايثون نظري): <span style="color: var(--text-main);">ahmedh.almajidy@uokufa.edu.iq</span></div>
-                        <div style="color: var(--text-muted);">إيميل الدكتور اسعد (خوارزميات نظري): <span style="color: var(--text-main);">asaad.alshareefi@uokufa.edu.iq</span></div>
+                        <div style="color: var(--text-muted); margin-bottom: 10px;">إيميل الدكتور احمد: <span style="color: var(--text-main);">ahmedh.almajidy@uokufa.edu.iq</span></div>
+                        <div style="color: var(--text-muted);">إيميل الدكتور اسعد: <span style="color: var(--text-main);">asaad.alshareefi@uokufa.edu.iq</span></div>
                     </div>
                 </div>
 
                 <div class="card">
                     <div class="card-title" style="color: var(--warning); margin-bottom: 15px;">📢 التوجيهات والرسائل الأسبوعية</div>
-
                     ${isAdmin() ? `
                         <div style="display: flex; gap: 10px; margin-bottom: 20px;">
                             <input type="text" id="new-msg-input" class="input-field" style="margin: 0;" placeholder="اكتب التوجيه أو الرسالة لهذا الأسبوع...">
                             <button class="btn btn-success" style="width: 120px;" onclick="addWeeklyMessage()">نشر</button>
                         </div>
                     ` : ''}
-
                     <div id="messages-container"></div>
                 </div>
             `;
@@ -385,13 +402,14 @@
             if (window.latestUpdates && window.latestUpdates[id]) {
                 localStorage.setItem(`max_id_${id}`, window.latestUpdates[id]);
             }
+            // تسجيل خطوة جديدة ليتمكن الطالب من الرجوع منها
+            history.pushState({ page: 'subject', id: id }, '', '#subject-' + id);
             render();
         }
 
         function renderSubjectDetails(app) {
             app.innerHTML = `
                 <button class="btn btn-outline" style="width: auto; margin-bottom: 15px;" onclick="switchMainTab('subjects')">🔙 العودة للمواد</button>
-
                 <div class="card">
                     <div class="sub-tabs">
                         <button class="sub-tab-btn ${activeSubTab === 'files' ? 'active' : ''}" onclick="switchSubTab('files')">📖 الملفات</button>
@@ -401,7 +419,6 @@
                     <div id="sub-view-container"></div>
                 </div>
             `;
-
             if (activeSubTab === 'files') fetchMedia('files');
             else if (activeSubTab === 'videos') fetchMedia('videos');
             else fetchQA();
@@ -451,42 +468,28 @@
                         </button>
                     </div>` : '';
 
-                // تغليف القائمة بـ div لاستخدام مكتبة SortableJS عليه
                 const listBody = list.length === 0
                     ? `<div class="empty-state">${isVid ? '🎬 لا توجد شروحات فيديو حتى الآن.' : '📂 لا توجد ملفات دراسية حتى الآن.'}</div>`
                     : `<div id="sortable-list">${list.map(item => createItemHTML(item, isVid)).join('')}</div>`;
 
                 container.innerHTML = toolbar + listBody;
 
-                // تفعيل السحب والإفلات للأدمن فقط
                 if (isAdmin() && list.length > 0) {
                     new Sortable(document.getElementById('sortable-list'), {
-                        handle: '.drag-handle', // السحب يتم من خلال المقبض فقط
+                        handle: '.drag-handle',
                         animation: 150,
                         ghostClass: 'sortable-ghost',
                         onEnd: function () {
                             const items = document.querySelectorAll('#sortable-list .media-item');
-                            const order = Array.from(items).map((el, idx) => ({
-                                id: Number(el.dataset.id),
-                                display_order: idx
-                            }));
-                            
-                            // إرسال الترتيب الجديد للخادم
+                            const order = Array.from(items).map((el, idx) => ({ id: Number(el.dataset.id), display_order: idx }));
                             api('/api/lectures/reorder', 'PUT', { order: order })
-                            .catch(() => alert('تعذر حفظ الترتيب الجديد، يرجى تحديث الصفحة'));
+                            .catch(() => alert('تعذر حفظ الترتيب الجديد'));
                         }
                     });
                 }
             })
             .catch(err => {
-                const addBtn = isAdmin() ? `
-                    <div class="toolbar">
-                        <div class="toolbar-info">${isVid ? '🎬' : '📚'} تعذر تحميل القائمة</div>
-                        <button class="btn-add ${isVid ? 'btn-add-video' : 'btn-add-file'}" onclick="openAddModal('${isVid ? 'video' : 'pdf'}')">
-                            ➕ ${isVid ? 'إضافة فيديو' : 'إضافة ملف'}
-                        </button>
-                    </div>` : '';
-                container.innerHTML = addBtn + `<div class="empty-state" style="color: red;">❌ فشل الاتصال بالخادم (${esc(err.message)}).<br><small>تحقق من ربط قاعدة البيانات في Vercel ثم أعد النشر.</small></div>`;
+                container.innerHTML = `<div class="empty-state" style="color: red;">❌ فشل الاتصال بالخادم.</div>`;
             });
         }
 
@@ -494,7 +497,7 @@
             const kind = linkKind(item.file_url, isVid);
             const title = esc(item.title.replace(/^\[(VIDEO|PDF)\]/, ''));
             const id = Number(item.id);
-            // تمت إضافة (data-id) للعنصر لمعرفته برمجياً عند السحب، وإضافة مقبض السحب (drag-handle)
+            // استخدمنا target="_top" بدلاً من _blank ليتم تسجيل عملية الفتح في النظام ويتيح للرجوع العودة للمادة
             return `
                 <div class="media-item" data-id="${id}">
                     ${isAdmin() ? `<div class="drag-handle" title="اسحب لتغيير الترتيب">↕️</div>` : ''}
@@ -504,7 +507,7 @@
                         <div class="media-meta">${kind.label}</div>
                     </div>
                     <div class="media-actions">
-                        <a class="act-open" style="background: ${kind.color};" href="${esc(safeUrl(item.file_url))}" target="_blank" rel="noopener noreferrer">
+                        <a class="act-open" style="background: ${kind.color};" href="${esc(safeUrl(item.file_url))}" target="_top">
                             ${isVid ? '▶️ مشاهدة' : '📖 فتح'}
                         </a>
                         <button class="act-icon" title="نسخ الرابط" onclick="copyLink(${id})">📋</button>
@@ -547,9 +550,7 @@
             setTimeout(() => document.getElementById('modal-title-input').focus(), 50);
         }
 
-        function closeAddModal() {
-            document.getElementById('addModal').style.display = 'none';
-        }
+        function closeAddModal() { document.getElementById('addModal').style.display = 'none'; }
 
         function submitContent() {
             const title = document.getElementById('modal-title-input').value.trim();
@@ -560,28 +561,18 @@
             if (!/^https?:\/\//i.test(url)) return alert('الرابط يجب أن يبدأ بـ http:// أو https://');
 
             const finalTitle = type === 'video' ? `[VIDEO]${title}` : `[PDF]${title}`;
-
             const btn = document.getElementById('save-btn');
-            btn.innerText = 'جاري الحفظ...';
-            btn.disabled = true;
+            btn.innerText = 'جاري الحفظ...'; btn.disabled = true;
 
             api('/api/lectures/add', 'POST', { subject_id: currentSubjectId, title: finalTitle, file_url: url, type })
-            .then(() => {
-                closeAddModal();
-                fetchMedia(type === 'pdf' ? 'files' : 'videos');
-            })
+            .then(() => { closeAddModal(); fetchMedia(type === 'pdf' ? 'files' : 'videos'); })
             .catch(() => alert('خطأ في الإضافة'))
-            .finally(() => {
-                btn.innerText = 'حفظ ونشر';
-                btn.disabled = false;
-            });
+            .finally(() => { btn.innerText = 'حفظ ونشر'; btn.disabled = false; });
         }
 
         function deleteLecture(id) {
             if (!confirm('هل أنت متأكد من الحذف النهائي؟')) return;
-            api(`/api/lectures/${id}`, 'DELETE')
-            .then(() => fetchMedia(activeSubTab))
-            .catch(() => alert('تعذر الحذف'));
+            api(`/api/lectures/${id}`, 'DELETE').then(() => fetchMedia(activeSubTab)).catch(() => alert('تعذر الحذف'));
         }
 
         // ---------- الأسئلة والمراسلة ----------
@@ -610,10 +601,6 @@
                     return;
                 }
                 qaList.innerHTML = data.map(threadHTML).join('');
-            })
-            .catch(() => {
-                const el = document.getElementById('qa-list');
-                if (el) el.innerHTML = '<div class="empty-state" style="color: red;">❌ فشل جلب المحادثات.</div>';
             });
         }
 
@@ -634,9 +621,7 @@
             const admin = isAdmin();
             const replies = q.replies || [];
             const answered = !!q.a_text || replies.some(r => r.is_admin);
-            const chip = q.is_admin ? ''
-                : (answered ? '<span class="chip chip-ok">✅ تمت الإجابة</span>'
-                            : '<span class="chip chip-wait">⏳ بانتظار الإجابة</span>');
+            const chip = q.is_admin ? '' : (answered ? '<span class="chip chip-ok">✅ تمت الإجابة</span>' : '<span class="chip chip-wait">⏳ بانتظار الإجابة</span>');
             return `
                 <div class="thread ${q.is_admin ? 'thread-admin' : ''}">
                     <div class="thread-head">
@@ -668,8 +653,7 @@
             const text = input.value.trim();
             if (!text) return;
             api('/api/questions/add', 'POST', { subject_id: currentSubjectId, q_text: text, asker: currentUser.name })
-            .then(() => fetchQA())
-            .catch(() => alert('تعذر الإرسال'));
+            .then(() => fetchQA()).catch(() => alert('تعذر الإرسال'));
         }
 
         function sendReply(qId) {
@@ -677,25 +661,15 @@
             const text = input.value.trim();
             if (!text) return;
             api(`/api/questions/${qId}/reply`, 'POST', { text, author: currentUser.name })
-            .then(() => fetchQA())
-            .catch(() => alert('تعذر إرسال الرد'));
+            .then(() => fetchQA()).catch(() => alert('تعذر إرسال الرد'));
         }
 
-        function deleteQuestion(id) {
-            if (!confirm('حذف هذه المحادثة بكل ردودها؟')) return;
-            api(`/api/questions/${id}`, 'DELETE').then(() => fetchQA()).catch(() => alert('تعذر الحذف'));
-        }
-
-        function deleteReply(id) {
-            if (!confirm('حذف هذا الرد؟')) return;
-            api(`/api/replies/${id}`, 'DELETE').then(() => fetchQA()).catch(() => alert('تعذر الحذف'));
-        }
+        function deleteQuestion(id) { if (confirm('حذف المحادثة؟')) api(`/api/questions/${id}`, 'DELETE').then(() => fetchQA()); }
+        function deleteReply(id) { if (confirm('حذف الرد؟')) api(`/api/replies/${id}`, 'DELETE').then(() => fetchQA()); }
 
         // ---------- الرسائل الأسبوعية ----------
         function fetchWeeklyMessages() {
             const container = document.getElementById('messages-container');
-            container.innerHTML = '<div style="color: var(--text-muted); text-align: center; padding: 20px;">⏳ جاري التحميل...</div>';
-
             api('/api/messages').then(msgs => {
                 if (!msgs || msgs.length === 0) {
                     container.innerHTML = '<div style="color: var(--text-muted); text-align: center; padding: 20px; border: 1px dashed var(--border); border-radius: 8px;">لا توجد رسائل أسبوعية حتى الآن.</div>';
@@ -708,8 +682,6 @@
                         ${isAdmin() ? `<button onclick="deleteMessage(${Number(msg.id)})" style="position: absolute; top: 15px; left: 15px; background: none; border: none; color: var(--danger); cursor: pointer; font-size: 13px;">حذف 🗑️</button>` : ''}
                     </div>
                 `).join('');
-            }).catch(() => {
-                container.innerHTML = '<div class="empty-state" style="color: red;">❌ فشل جلب الرسائل.</div>';
             });
         }
 
@@ -717,18 +689,11 @@
             const input = document.getElementById('new-msg-input');
             const text = input.value.trim();
             if (!text) return;
-            const date = new Date().toLocaleDateString('ar-IQ');
-            api('/api/messages/add', 'POST', { text, date })
-            .then(() => { input.value = ''; fetchWeeklyMessages(); })
-            .catch(() => alert('تعذر النشر'));
+            api('/api/messages/add', 'POST', { text, date: new Date().toLocaleDateString('ar-IQ') })
+            .then(() => { input.value = ''; fetchWeeklyMessages(); });
         }
 
-        function deleteMessage(id) {
-            if (!confirm('هل أنت متأكد من حذف هذه الرسالة؟')) return;
-            api(`/api/messages/${id}`, 'DELETE')
-            .then(() => fetchWeeklyMessages())
-            .catch(() => alert('تعذر الحذف'));
-        }
+        function deleteMessage(id) { if (confirm('حذف الرسالة؟')) api(`/api/messages/${id}`, 'DELETE').then(() => fetchWeeklyMessages()); }
 
         init();
     </script>

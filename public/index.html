@@ -6,6 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>مساعد دراسي | الذكاء الاصطناعي</title>
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- استدعاء مكتبة السحب والإفلات -->
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     <style>
         :root {
             --bg-color: #0f172a;
@@ -104,7 +106,7 @@
         .btn-add-file { background: var(--primary); }
         .btn-add-video { background: var(--danger); }
         .media-item { background: var(--item-bg); padding: 14px 16px; border-radius: 12px; border: 1px solid var(--border);
-            display: flex; align-items: center; gap: 14px; margin-bottom: 12px; flex-wrap: wrap; }
+            display: flex; align-items: center; gap: 14px; margin-bottom: 12px; flex-wrap: wrap; transition: transform 0.2s; }
         .media-icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 24px; flex-shrink: 0; }
         .media-info { flex: 1; min-width: 150px; }
         .media-title { font-weight: 700; font-size: 16px; color: #fff; word-break: break-word; }
@@ -114,6 +116,11 @@
         .act-icon { background: transparent; border: 1px solid var(--border); color: var(--text-main); padding: 8px 11px; border-radius: 8px; cursor: pointer; transition: 0.2s; }
         .act-icon:hover { background: var(--border); }
         .role-badge { font-size: 12px; background: rgba(245,158,11,0.15); color: var(--warning); padding: 2px 10px; border-radius: 12px; margin-right: 8px; }
+        
+        /* تنسيقات السحب والإفلات */
+        .drag-handle { cursor: grab; font-size: 20px; color: var(--text-muted); display: flex; align-items: center; justify-content: center; width: 30px; }
+        .drag-handle:active { cursor: grabbing; color: var(--primary); }
+        .sortable-ghost { opacity: 0.4; background: rgba(59, 130, 246, 0.1); border: 1px dashed var(--primary); }
 
         /* ---- الأسئلة والمراسلة ---- */
         .qa-compose { background: var(--item-bg); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 20px; }
@@ -444,11 +451,32 @@
                         </button>
                     </div>` : '';
 
-                const body = list.length === 0
+                // تغليف القائمة بـ div لاستخدام مكتبة SortableJS عليه
+                const listBody = list.length === 0
                     ? `<div class="empty-state">${isVid ? '🎬 لا توجد شروحات فيديو حتى الآن.' : '📂 لا توجد ملفات دراسية حتى الآن.'}</div>`
-                    : list.map(item => createItemHTML(item, isVid)).join('');
+                    : `<div id="sortable-list">${list.map(item => createItemHTML(item, isVid)).join('')}</div>`;
 
-                container.innerHTML = toolbar + body;
+                container.innerHTML = toolbar + listBody;
+
+                // تفعيل السحب والإفلات للأدمن فقط
+                if (isAdmin() && list.length > 0) {
+                    new Sortable(document.getElementById('sortable-list'), {
+                        handle: '.drag-handle', // السحب يتم من خلال المقبض فقط
+                        animation: 150,
+                        ghostClass: 'sortable-ghost',
+                        onEnd: function () {
+                            const items = document.querySelectorAll('#sortable-list .media-item');
+                            const order = Array.from(items).map((el, idx) => ({
+                                id: Number(el.dataset.id),
+                                display_order: idx
+                            }));
+                            
+                            // إرسال الترتيب الجديد للخادم
+                            api('/api/lectures/reorder', 'PUT', { order: order })
+                            .catch(() => alert('تعذر حفظ الترتيب الجديد، يرجى تحديث الصفحة'));
+                        }
+                    });
+                }
             })
             .catch(err => {
                 const addBtn = isAdmin() ? `
@@ -466,8 +494,10 @@
             const kind = linkKind(item.file_url, isVid);
             const title = esc(item.title.replace(/^\[(VIDEO|PDF)\]/, ''));
             const id = Number(item.id);
+            // تمت إضافة (data-id) للعنصر لمعرفته برمجياً عند السحب، وإضافة مقبض السحب (drag-handle)
             return `
-                <div class="media-item">
+                <div class="media-item" data-id="${id}">
+                    ${isAdmin() ? `<div class="drag-handle" title="اسحب لتغيير الترتيب">↕️</div>` : ''}
                     <div class="media-icon" style="background: ${kind.color}22; color: ${kind.color};">${kind.icon}</div>
                     <div class="media-info">
                         <div class="media-title">${title}</div>
@@ -673,7 +703,7 @@
                 }
                 container.innerHTML = msgs.map((msg, index) => `
                     <div style="background: var(--item-bg); border-right: 4px solid var(--warning); padding: 15px; margin-bottom: 10px; border-radius: 4px; position: relative;">
-                        <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 5px;">الأسبوع ${msgs.length - index} • ${esc(msg.date)}</div>
+                        <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 5px;">الأسبوع ${msgs.length - index} ${esc(msg.date)}</div>
                         <div style="color: white; font-size: 15px;">${esc(msg.text)}</div>
                         ${isAdmin() ? `<button onclick="deleteMessage(${Number(msg.id)})" style="position: absolute; top: 15px; left: 15px; background: none; border: none; color: var(--danger); cursor: pointer; font-size: 13px;">حذف 🗑️</button>` : ''}
                     </div>

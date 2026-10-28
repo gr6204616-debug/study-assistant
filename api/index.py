@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS messages (
 ALTER TABLE questions ADD COLUMN IF NOT EXISTS asker TEXT;
 ALTER TABLE questions ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE questions ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE lectures ADD COLUMN IF NOT EXISTS display_order INTEGER NOT NULL DEFAULT 0;
 CREATE TABLE IF NOT EXISTS replies (
     id SERIAL PRIMARY KEY,
     question_id INTEGER NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
@@ -123,7 +124,8 @@ def updates_check():
 # ---------- المحاضرات ----------
 @app.get("/api/lectures/<subject_id>")
 def lectures_list(subject_id):
-    return jsonify(run("SELECT * FROM lectures WHERE subject_id = %s ORDER BY id DESC", (subject_id,)))
+    # الترتيب أولاً حسب display_order ثم حسب id
+    return jsonify(run("SELECT * FROM lectures WHERE subject_id = %s ORDER BY display_order ASC, id ASC", (subject_id,)))
 
 
 @app.post("/api/lectures/add")
@@ -331,6 +333,23 @@ def send_telegram_notification(message):
         urllib.request.urlopen(req, timeout=5) # مهلة 5 ثوانٍ كي لا يتجمد الموقع
     except Exception as e:
         app.logger.error(f"فشل إرسال إشعار تيليجرام: {e}")
+@app.put("/api/lectures/reorder")
+def lectures_reorder():
+    denied = admin_only()
+    if denied:
+        return denied
+    
+    # نتوقع استلام مصفوفة تحتوي على معرفات الملفات وترتيبها الجديد
+    order_list = body().get("order", [])
+    if not order_list:
+        return jsonify({"error": "قائمة الترتيب فارغة"}), 400
+        
+    # تحديث ترتيب كل ملف في قاعدة البيانات
+    for item in order_list:
+        run("UPDATE lectures SET display_order = %s WHERE id = %s", 
+            (item.get("display_order"), item.get("id")), fetch=False)
+            
+    return jsonify({"ok": True})
 # أضف هذه الدالة تحت دالة send_telegram_notification السابقة
 def send_telegram_reply(chat_id, message):
     token = os.environ.get("TELEGRAM_BOT_TOKEN")

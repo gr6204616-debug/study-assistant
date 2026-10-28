@@ -24,8 +24,12 @@
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Tajawal', sans-serif; }
-        body { background-color: var(--bg-color); color: var(--text-main); line-height: 1.6; }
-
+        body { 
+            background-color: var(--bg-color); 
+            color: var(--text-main); 
+            line-height: 1.6; 
+            overscroll-behavior-y: none; /* هذا السطر يمنع مشكلة التحديث عند سحب الشاشة للأسفل */
+        }
         header {
             background-color: var(--card-bg); border-bottom: 1px solid var(--border);
             padding: 15px 20px; position: sticky; top: 0; z-index: 100;
@@ -507,7 +511,7 @@
                         <div class="media-meta">${kind.label}</div>
                     </div>
                     <div class="media-actions">
-                        <a class="act-open" style="background: ${kind.color};" href="${esc(safeUrl(item.file_url))}" target="_top">
+                        <a class="act-open" style="background: ${kind.color};" href="${esc(safeUrl(item.file_url))}" target="_blank">
                             ${isVid ? '▶️ مشاهدة' : '📖 فتح'}
                         </a>
                         <button class="act-icon" title="نسخ الرابط" onclick="copyLink(${id})">📋</button>

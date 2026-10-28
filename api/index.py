@@ -143,8 +143,15 @@ def lectures_add():
     )[0]
     
     # --- إرسال الإشعار لجروب تيليجرام ---
+    # --- إرسال الإشعار لجروب تيليجرام ---
     try:
-        msg = f"📚 <b>تمت إضافة مادة جديدة</b>\n\nالمادة: {subject}\nالعنوان: {title}\n<a href='{url}'>اضغط هنا لفتح الملف</a>"
+        msg = (
+            f"📢 <b>تم رفع ملف جديد!</b>\n\n"
+            f"📚 المادة: {subject}\n"
+            f"📄 العنوان: {title}\n\n"
+            f"🌐 <b>لتحميل الملف والوصول لجميع المواد، ادخل إلى المنصة:</b>\n"
+            f"<a href='https://study-assistant-ivory-two.vercel.app'>https://study-assistant-ivory-two.vercel.app</a>"
+        )
         send_telegram_notification(msg)
     except Exception:
         pass
@@ -487,6 +494,7 @@ def telegram_webhook():
                     msg = "🔍 <b>تفضل، وجدت هذه الملفات:</b>\n\n"
                     for r in rows:
                         msg += f"▪️ {r['subject_id']}: <a href='{r['file_url']}'>{r['title']}</a>\n"
+                    msg += "\n🌐 <b>تصفح جميع المواد والشروحات على:</b>\n<a href='https://study-assistant-ivory-two.vercel.app'>منصة مساعد دراسي</a>"
                 else:
                     joined_terms = ' '.join(search_terms)
                     msg = f"لم أجد أي ملف يطابق ( {joined_terms} ). تأكد من كتابة اسم المادة ورقم المحاضرة بشكل صحيح."

@@ -57,6 +57,11 @@
             background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px;
             padding: 20px; display: flex; flex-direction: column; gap: 10px; transition: 0.2s;
         }
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px -5px rgba(59, 130, 246, 0.25);
+            border-color: var(--primary);
+        }
         .card-title { font-size: 18px; font-weight: 700; color: var(--text-main); }
 
         .input-field {
@@ -152,6 +157,11 @@
         .reply-box { display: flex; gap: 8px; margin-top: 10px; }
         .reply-box .input-field { margin: 0; padding: 8px 10px; }
         .mini-del { background: none; border: none; color: var(--danger); cursor: pointer; font-size: 14px; }
+        /* تخصيص شريط التمرير بالكامل */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: var(--bg-color); }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
     </style>
 </head>
 <body>

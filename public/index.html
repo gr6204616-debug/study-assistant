@@ -189,15 +189,18 @@
             scrollbar-width: none;  /* لمتصفح فايرفوكس */
         }
         /* تنسيق إشعارات الهاتف (Toast) */
-        #toast-container {
-            position: fixed; bottom: -100px; left: 50%; transform: translateX(-50%);
-            background: rgba(30, 41, 59, 0.95); color: #fff; padding: 12px 24px;
-            border-radius: 30px; box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-            font-weight: 700; border: 1px solid var(--border);
-            transition: bottom 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            z-index: 9999; display: flex; align-items: center; gap: 10px;
-            pointer-events: none; white-space: nowrap; backdrop-filter: blur(5px);
-        }
+        /* تنسيق إشعارات الهاتف (Toast) */
+#toast-container {
+    position: fixed; bottom: -100px; left: 50%; transform: translateX(-50%);
+    opacity: 0;
+    background: rgba(30, 41, 59, 0.95); color: #fff; padding: 12px 24px;
+    border-radius: 30px; box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    font-weight: 700; border: 1px solid var(--border);
+    transition: bottom 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s;
+    z-index: 9999; display: flex; align-items: center; gap: 10px;
+    pointer-events: none; white-space: nowrap; backdrop-filter: blur(5px);
+}
+#toast-container.show { bottom: 40px; opacity: 1; }
         #toast-container.show { bottom: 40px; } /* سيظهر فوق الحافة السفلية للشاشة */
         /* تأثير التلاشي عند تبديل المحتوى */
         .fade-in { animation: fadeInEffect 0.3s ease-in-out; }
@@ -209,7 +212,6 @@
 </head>
 <body>
     <header id="main-header" style="display: none;">
-        <div id="toast-container"></div>
 
         <div class="logo">مساعد دراسي 🎓<span id="role-badge" class="role-badge" style="display:none;"></span></div>
         <nav>
@@ -220,7 +222,7 @@
     </header>
 
     <main id="app-content"></main>
-
+<div id="toast-container"></div>
     <div class="modal-overlay" id="addModal">
         <div class="modal-content">
             <div class="modal-header">

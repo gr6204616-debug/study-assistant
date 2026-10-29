@@ -38,6 +38,7 @@ ALTER TABLE questions ADD COLUMN IF NOT EXISTS asker TEXT;
 ALTER TABLE questions ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE questions ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 ALTER TABLE lectures ADD COLUMN IF NOT EXISTS display_order INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE messages ADD COLUMN image_url TEXT;
 CREATE TABLE IF NOT EXISTS replies (
     id SERIAL PRIMARY KEY,
     question_id INTEGER NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
@@ -278,32 +279,55 @@ def admin_pending():
     return jsonify({r["subject_id"]: r["c"] for r in rows})
 
 
-# ---------- الرسائل الأسبوعية ----------
+# ----------- الرسائل الأسبوعية -----------
+
 @app.get("/api/messages")
 def messages_list():
+    # طالما أنك تستخدم SELECT * ، فسيتم جلب رابط الصورة تلقائياً بمجرد إضافتك للعمود في قاعدة البيانات
     return jsonify(run("SELECT * FROM messages ORDER BY id DESC"))
-
 
 @app.post("/api/messages/add")
 def messages_add():
     denied = admin_only()
     if denied:
         return denied
+    
     d = body()
     text = str(d.get("text", "")).strip()[:2000]
-    if not text:
-        return jsonify({"error": "الرسالة فارغة"}), 400
+    image_url = str(d.get("image_url", "")).strip() # استقبال رابط الصورة
+    
+    if not text and not image_url:
+        return jsonify({"error": "يجب إدخال نص أو صورة"}), 400
+        
     when = str(d.get("date") or date.today().isoformat())[:30]
-    run("INSERT INTO messages (text, date) VALUES (%s,%s)", (text, when), fetch=False)
+    
+    # تحديث الاستعلام ليشمل الصورة
+    run("INSERT INTO messages (text, date, image_url) VALUES (%s, %s, %s)", (text, when, image_url))
     
     # --- إرسال الإشعار لجروب تيليجرام ---
     try:
         msg = f"📣 <b>تبليغ جديد للدفعة ({when})</b>\n\n{text}"
+        if image_url:
+            msg += f"\n\n🖼️ <b>صورة مرفقة:</b> {image_url}"
         send_telegram_notification(msg)
-    except Exception:
-        pass
+    except Exception as e:
+        print("Telegram Error:", e)
+        
+    return jsonify({"success": True})
 
-    return jsonify({"ok": True})
+
+# --- مسار التعديل الجديد (أضفه تحت الدوال السابقة) ---
+@app.put("/api/messages/<int:msg_id>")
+def edit_message(msg_id):
+    denied = admin_only()
+    if denied:
+        return denied
+        
+    d = body()
+    new_text = str(d.get("text", "")).strip()[:2000]
+    
+    run("UPDATE messages SET text = %s WHERE id = %s", (new_text, msg_id))
+    return jsonify({"success": True})
 
 @app.delete("/api/messages/<int:m_id>")
 def messages_delete(m_id):

@@ -786,7 +786,22 @@
                 fetchWeeklyMessages(); 
             }).catch(() => showToast('تعذر نشر الرسالة', '❌'));
         }
-
+        function editMessage(id) {
+            const msg = window.weeklyMessages.find(m => m.id === id);
+            if (!msg) return;
+            
+            const newText = prompt('قم بتعديل الرسالة:', msg.text);
+            if (newText === null) return; // تم الإلغاء
+            
+            api(`/api/messages/${id}`, 'PUT', { text: newText.trim() })
+            .then(() => {
+                showToast('تم تعديل الرسالة بنجاح');
+                fetchWeeklyMessages();
+            })
+            .catch(() => {
+                showToast('تعذر التعديل، تأكد من إضافة مسار PUT في الباك إند', '❌');
+            });
+        }
         function deleteMessage(id) { if (confirm('حذف الرسالة؟')) api(`/api/messages/${id}`, 'DELETE').then(() => fetchWeeklyMessages()); }
 
         init();

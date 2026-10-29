@@ -30,6 +30,20 @@
             line-height: 1.6; 
             overscroll-behavior-y: none; /* هذا السطر يمنع مشكلة التحديث عند سحب الشاشة للأسفل */
         }
+        * { 
+            -webkit-tap-highlight-color: transparent; /* يمنع الوميض الأزرق عند لمس الأزرار */
+        }
+        
+        body { 
+            -webkit-user-select: none; /* يمنع تحديد النصوص عند الضغط المطول بالخطأ */
+            user-select: none; 
+        }
+        
+        /* يجب استثناء حقول الإدخال ليتمكن الطلاب من كتابة الأسئلة */
+        .input-field, textarea, input { 
+            -webkit-user-select: auto; 
+            user-select: auto; 
+        }
         header {
             background-color: rgba(30, 41, 59, 0.85); /* لون شفاف قليلاً */
             backdrop-filter: blur(12px); /* تأثير الضباب الزجاجي */
@@ -162,6 +176,18 @@
         ::-webkit-scrollbar-track { background: var(--bg-color); }
         ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
         ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+        .btn:active, .nav-btn:active, .act-open:active, .act-icon:active, .sub-tab-btn:active {
+            transform: scale(0.95); /* انكماش الزر عند اللمس */
+            transition: transform 0.1s ease;
+        }
+        /* إخفاء شريط التمرير السفلي في التبويبات الفرعية فقط */
+        .sub-tabs::-webkit-scrollbar {
+            display: none; 
+        }
+        .sub-tabs {
+            -ms-overflow-style: none;  /* لمتصفحات إكسبلورر القديمة */
+            scrollbar-width: none;  /* لمتصفح فايرفوكس */
+        }
     </style>
 </head>
 <body>

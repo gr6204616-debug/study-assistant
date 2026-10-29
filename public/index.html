@@ -31,7 +31,10 @@
             overscroll-behavior-y: none; /* هذا السطر يمنع مشكلة التحديث عند سحب الشاشة للأسفل */
         }
         header {
-            background-color: var(--card-bg); border-bottom: 1px solid var(--border);
+            background-color: rgba(30, 41, 59, 0.85); /* لون شفاف قليلاً */
+            backdrop-filter: blur(12px); /* تأثير الضباب الزجاجي */
+            -webkit-backdrop-filter: blur(12px); /* لدعم متصفحات الهواتف */
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
             padding: 15px 20px; position: sticky; top: 0; z-index: 100;
             display: flex; justify-content: space-between; align-items: center;
         }

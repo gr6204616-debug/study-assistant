@@ -458,9 +458,12 @@
                 <div class="card">
                     <div class="card-title" style="color: var(--warning); margin-bottom: 15px;">📢 التوجيهات والرسائل الأسبوعية</div>
                     ${isAdmin() ? `
-                        <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+                        <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;">
                             <input type="text" id="new-msg-input" class="input-field" style="margin: 0;" placeholder="اكتب التوجيه أو الرسالة لهذا الأسبوع...">
-                            <button class="btn btn-success" style="width: 120px;" onclick="addWeeklyMessage()">نشر</button>
+                            <div style="display: flex; gap: 10px;">
+                                <input type="url" id="new-msg-img" class="input-field" style="margin: 0; flex: 1;" placeholder="رابط صورة السبورة (اختياري)..." dir="ltr">
+                                <button class="btn btn-success" style="width: 120px;" onclick="addWeeklyMessage()">نشر</button>
+                            </div>
                         </div>
                     ` : ''}
                     <div id="messages-container"></div>
@@ -753,7 +756,10 @@
                 container.innerHTML = msgs.map((msg, index) => `
                     <div style="background: var(--item-bg); border-right: 4px solid var(--warning); padding: 15px; margin-bottom: 10px; border-radius: 4px; position: relative;">
                         <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 5px;">الأسبوع ${msgs.length - index} ${esc(msg.date)}</div>
-                        <div style="color: white; font-size: 15px;">${esc(msg.text)}</div>
+                        ${msg.text ? `<div style="color: white; font-size: 15px; margin-bottom: 8px;">${esc(msg.text)}</div>` : ''}
+                        
+                        ${msg.image_url ? `<img src="${esc(safeUrl(msg.image_url))}" style="max-width: 100%; border-radius: 8px; border: 1px solid var(--border); margin-top: 5px;" alt="مرفق السبورة">` : ''}
+                        
                         ${isAdmin() ? `<button onclick="deleteMessage(${Number(msg.id)})" style="position: absolute; top: 15px; left: 15px; background: none; border: none; color: var(--danger); cursor: pointer; font-size: 13px;">حذف 🗑️</button>` : ''}
                     </div>
                 `).join('');
@@ -762,10 +768,18 @@
 
         function addWeeklyMessage() {
             const input = document.getElementById('new-msg-input');
+            const imgInput = document.getElementById('new-msg-img');
             const text = input.value.trim();
-            if (!text) return;
-            api('/api/messages/add', 'POST', { text, date: new Date().toLocaleDateString('ar-IQ') })
-            .then(() => { input.value = ''; fetchWeeklyMessages(); });
+            const image_url = imgInput ? imgInput.value.trim() : '';
+            
+            if (!text && !image_url) return; // يجب إدخال نص أو صورة على الأقل
+            
+            api('/api/messages/add', 'POST', { text, image_url, date: new Date().toLocaleDateString('ar-IQ') })
+            .then(() => { 
+                input.value = ''; 
+                if(imgInput) imgInput.value = ''; 
+                fetchWeeklyMessages(); 
+            }).catch(() => showToast('تعذر نشر الرسالة', '❌'));
         }
 
         function deleteMessage(id) { if (confirm('حذف الرسالة؟')) api(`/api/messages/${id}`, 'DELETE').then(() => fetchWeeklyMessages()); }

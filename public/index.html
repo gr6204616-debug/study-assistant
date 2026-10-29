@@ -188,11 +188,29 @@
             -ms-overflow-style: none;  /* لمتصفحات إكسبلورر القديمة */
             scrollbar-width: none;  /* لمتصفح فايرفوكس */
         }
+        /* تنسيق إشعارات الهاتف (Toast) */
+        #toast-container {
+            position: fixed; bottom: -100px; left: 50%; transform: translateX(-50%);
+            background: rgba(30, 41, 59, 0.95); color: #fff; padding: 12px 24px;
+            border-radius: 30px; box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            font-weight: 700; border: 1px solid var(--border);
+            transition: bottom 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 9999; display: flex; align-items: center; gap: 10px;
+            pointer-events: none; white-space: nowrap; backdrop-filter: blur(5px);
+        }
+        #toast-container.show { bottom: 40px; } /* سيظهر فوق الحافة السفلية للشاشة */
+        /* تأثير التلاشي عند تبديل المحتوى */
+        .fade-in { animation: fadeInEffect 0.3s ease-in-out; }
+        @keyframes fadeInEffect {
+            from { opacity: 0; transform: scale(0.98); }
+            to { opacity: 1; transform: scale(1); }
+        }
     </style>
 </head>
 <body>
-
     <header id="main-header" style="display: none;">
+        <div id="toast-container"></div>
+
         <div class="logo">مساعد دراسي 🎓<span id="role-badge" class="role-badge" style="display:none;"></span></div>
         <nav>
             <button class="nav-btn active" data-tab="subjects" onclick="switchMainTab('subjects')">المواد الدراسية</button>
@@ -222,6 +240,7 @@
     </div>
 
     <script>
+        
         const API_URL = "";   
         let currentUser = null;
         let currentTab = 'subjects';
@@ -291,7 +310,12 @@
                 renderLogin();
             }
         }
-
+    function showToast(message, icon = '✅') {
+            const toast = document.getElementById('toast-container');
+            toast.innerHTML = `${icon} ${message}`;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 3000); // يختفي بعد 3 ثواني
+        }
         function renderLogin() {
             document.getElementById('app-content').innerHTML = `
                 <div class="login-wrapper card">
@@ -361,6 +385,12 @@
 
         function render() {
             const app = document.getElementById('app-content');
+            
+            // إعادة تشغيل الحركة في كل مرة يتم فيها التبديل
+            app.classList.remove('fade-in');
+            void app.offsetWidth; // خدعة برمجية لإجبار المتصفح على إعادة رسم الحركة
+            app.classList.add('fade-in');
+            
             app.innerHTML = '';
             if (currentTab === 'subjects') renderSubjects(app);
             else if (currentTab === 'batch') renderBatch(app);
@@ -566,7 +596,7 @@
         function copyLink(id) {
             const item = window.lectureMap[id];
             if (!item) return;
-            const done = () => alert('✅ تم نسخ الرابط');
+            const done = () => showToast('تم نسخ الرابط بنجاح'); // استخدمنا التوست هنا بدلاً من alert
             if (navigator.clipboard) navigator.clipboard.writeText(item.file_url).then(done).catch(() => prompt('انسخ الرابط:', item.file_url));
             else prompt('انسخ الرابط:', item.file_url);
         }

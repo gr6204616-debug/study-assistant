@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS replies (
 _schema_ready = False
 
 
-def run(sql, params=(), fetch=False):
+def run(sql, params=(), fetch=True):
     """تنفيذ استعلام واحد وإرجاع النتائج كقواميس."""
     conn = psycopg2.connect(DATABASE_URL)
     try:

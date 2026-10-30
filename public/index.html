@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>مساعد دراسي | الذكاء الاصطناعي</title>
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
     <style>
         :root {
             --bg-color: #0f172a;
@@ -24,30 +24,27 @@
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Tajawal', sans-serif; }
-        body { 
-            background-color: var(--bg-color); 
-            color: var(--text-main); 
-            line-height: 1.6; 
-            overscroll-behavior-y: none; /* هذا السطر يمنع مشكلة التحديث عند سحب الشاشة للأسفل */
-        }
-        * { 
-            -webkit-tap-highlight-color: transparent; /* يمنع الوميض الأزرق عند لمس الأزرار */
-        }
-        
-        body { 
+        * { -webkit-tap-highlight-color: transparent; } /* يمنع الوميض الأزرق عند لمس الأزرار */
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            line-height: 1.6;
+            overscroll-behavior-y: none; /* يمنع التحديث عند سحب الشاشة للأسفل */
             -webkit-user-select: none; /* يمنع تحديد النصوص عند الضغط المطول بالخطأ */
-            user-select: none; 
+            user-select: none;
         }
-        
-        /* يجب استثناء حقول الإدخال ليتمكن الطلاب من كتابة الأسئلة */
-        .input-field, textarea, input { 
-            -webkit-user-select: auto; 
-            user-select: auto; 
+
+        /* استثناء حقول الإدخال ليتمكن الطلاب من الكتابة */
+        .input-field, textarea, input {
+            -webkit-user-select: auto;
+            user-select: auto;
         }
+
         header {
-            background-color: rgba(30, 41, 59, 0.85); /* لون شفاف قليلاً */
-            backdrop-filter: blur(12px); /* تأثير الضباب الزجاجي */
-            -webkit-backdrop-filter: blur(12px); /* لدعم متصفحات الهواتف */
+            background-color: rgba(30, 41, 59, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
             border-bottom: 1px solid rgba(255, 255, 255, 0.05);
             padding: 15px 20px; position: sticky; top: 0; z-index: 100;
             display: flex; justify-content: space-between; align-items: center;
@@ -104,10 +101,6 @@
         .empty-state { text-align: center; padding: 40px 20px; color: var(--text-muted); border: 2px dashed var(--border); border-radius: 12px; }
         .admin-panel { background: rgba(59, 130, 246, 0.05); border: 1px dashed var(--primary); border-radius: 12px; padding: 20px; margin-top: 20px; }
 
-        .q-box { background: var(--item-bg); border: 1px solid var(--border); border-radius: 8px; padding: 15px; margin-bottom: 10px; }
-        .q-text { font-weight: bold; color: var(--warning); margin-bottom: 5px; }
-        .a-text { color: var(--success); background: rgba(16, 185, 129, 0.1); padding: 10px; border-radius: 6px; margin-top: 10px; }
-
         .login-wrapper { max-width: 400px; margin: 100px auto; text-align: center; }
 
         .modal-overlay {
@@ -137,14 +130,13 @@
         .media-title { font-weight: 700; font-size: 16px; color: #fff; word-break: break-word; }
         .media-meta { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
         .media-actions { display: flex; gap: 8px; align-items: center; }
-        
-        /* التعديل هنا مهم جداً: استخدام _top بدلاً من _blank داخل التطبيق */
+
         .act-open { color: #fff; padding: 8px 18px; border-radius: 8px; text-decoration: none; font-weight: 700; display: flex; align-items: center; gap: 6px; }
-        
+
         .act-icon { background: transparent; border: 1px solid var(--border); color: var(--text-main); padding: 8px 11px; border-radius: 8px; cursor: pointer; transition: 0.2s; }
         .act-icon:hover { background: var(--border); }
         .role-badge { font-size: 12px; background: rgba(245,158,11,0.15); color: var(--warning); padding: 2px 10px; border-radius: 12px; margin-right: 8px; }
-        
+
         .drag-handle { cursor: grab; font-size: 20px; color: var(--text-muted); display: flex; align-items: center; justify-content: center; width: 30px; }
         .drag-handle:active { cursor: grabbing; color: var(--primary); }
         .sortable-ghost { opacity: 0.4; background: rgba(59, 130, 246, 0.1); border: 1px dashed var(--primary); }
@@ -171,6 +163,15 @@
         .reply-box { display: flex; gap: 8px; margin-top: 10px; }
         .reply-box .input-field { margin: 0; padding: 8px 10px; }
         .mini-del { background: none; border: none; color: var(--danger); cursor: pointer; font-size: 14px; }
+
+        /* ---- الرسائل الأسبوعية ---- */
+        .week-msg { background: var(--item-bg); border-right: 4px solid var(--warning); padding: 15px; margin-bottom: 10px; border-radius: 4px; }
+        .week-msg-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+        .week-msg-date { font-size: 12px; color: var(--text-muted); }
+        .week-msg-actions { display: flex; gap: 12px; }
+        .week-msg-actions button { background: none; border: none; cursor: pointer; font-size: 13px; }
+        .week-msg-text { color: white; font-size: 15px; margin-bottom: 8px; white-space: pre-wrap; word-break: break-word; }
+
         /* تخصيص شريط التمرير بالكامل */
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: var(--bg-color); }
@@ -181,27 +182,25 @@
             transition: transform 0.1s ease;
         }
         /* إخفاء شريط التمرير السفلي في التبويبات الفرعية فقط */
-        .sub-tabs::-webkit-scrollbar {
-            display: none; 
-        }
+        .sub-tabs::-webkit-scrollbar { display: none; }
         .sub-tabs {
-            -ms-overflow-style: none;  /* لمتصفحات إكسبلورر القديمة */
-            scrollbar-width: none;  /* لمتصفح فايرفوكس */
+            -ms-overflow-style: none;
+            scrollbar-width: none;
         }
-        /* تنسيق إشعارات الهاتف (Toast) */
-        /* تنسيق إشعارات الهاتف (Toast) */
-#toast-container {
-    position: fixed; bottom: -100px; left: 50%; transform: translateX(-50%);
-    opacity: 0;
-    background: rgba(30, 41, 59, 0.95); color: #fff; padding: 12px 24px;
-    border-radius: 30px; box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-    font-weight: 700; border: 1px solid var(--border);
-    transition: bottom 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s;
-    z-index: 9999; display: flex; align-items: center; gap: 10px;
-    pointer-events: none; white-space: nowrap; backdrop-filter: blur(5px);
-}
-#toast-container.show { bottom: 40px; opacity: 1; }
-        #toast-container.show { bottom: 40px; } /* سيظهر فوق الحافة السفلية للشاشة */
+
+        /* إشعارات الهاتف (Toast) */
+        #toast-container {
+            position: fixed; bottom: -100px; left: 50%; transform: translateX(-50%);
+            opacity: 0;
+            background: rgba(30, 41, 59, 0.95); color: #fff; padding: 12px 24px;
+            border-radius: 30px; box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            font-weight: 700; border: 1px solid var(--border);
+            transition: bottom 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s;
+            z-index: 9999; display: flex; align-items: center; gap: 10px;
+            pointer-events: none; white-space: nowrap; backdrop-filter: blur(5px);
+        }
+        #toast-container.show { bottom: 40px; opacity: 1; }
+
         /* تأثير التلاشي عند تبديل المحتوى */
         .fade-in { animation: fadeInEffect 0.3s ease-in-out; }
         @keyframes fadeInEffect {
@@ -222,7 +221,9 @@
     </header>
 
     <main id="app-content"></main>
-<div id="toast-container"></div>
+    <div id="toast-container"></div>
+
+    <!-- نافذة إضافة ملف / فيديو -->
     <div class="modal-overlay" id="addModal">
         <div class="modal-content">
             <div class="modal-header">
@@ -241,9 +242,22 @@
         </div>
     </div>
 
+    <!-- نافذة تعديل الرسالة الأسبوعية -->
+    <div class="modal-overlay" id="editMsgModal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <span>✏️ تعديل الرسالة</span>
+                <button class="close-modal" onclick="closeEditMsg()">&times;</button>
+            </div>
+            <input type="hidden" id="edit-msg-id">
+            <textarea id="edit-msg-text" class="input-field" rows="10" style="min-height: 200px;"></textarea>
+            <button class="btn" id="edit-msg-save" onclick="saveEditedMessage()">حفظ التعديل</button>
+        </div>
+    </div>
+
     <script>
-        
-        const API_URL = "";   
+
+        const API_URL = "";
         let currentUser = null;
         let currentTab = 'subjects';
         let currentSubjectId = null;
@@ -277,9 +291,15 @@
             return res.json();
         }
 
+        function showToast(message, icon = '✅') {
+            const toast = document.getElementById('toast-container');
+            toast.innerHTML = `${icon} ${esc(message)}`;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
         // ---------- الدخول وزر الرجوع للهاتف ----------
-        // هذا الكود هو المسؤول عن حل مشكلة خروج التطبيق عند ضغط زر الرجوع
-        window.addEventListener('popstate', function(event) {
+        window.addEventListener('popstate', function (event) {
             if (event.state && event.state.page === 'subject') {
                 currentSubjectId = event.state.id;
                 currentTab = 'subject_details';
@@ -301,7 +321,7 @@
                 const rb = document.getElementById('role-badge');
                 rb.textContent = isAdmin() ? '👨‍🏫 أدمن' : '';
                 rb.style.display = isAdmin() ? 'inline-block' : 'none';
-                
+
                 // تسجيل الصفحة الرئيسية في تاريخ المتصفح لمنع الخروج المباشر
                 if (!history.state) {
                     history.replaceState({ page: 'main', tab: 'subjects' }, '', '#subjects');
@@ -312,12 +332,7 @@
                 renderLogin();
             }
         }
-    function showToast(message, icon = '✅') {
-            const toast = document.getElementById('toast-container');
-            toast.innerHTML = `${icon} ${message}`;
-            toast.classList.add('show');
-            setTimeout(() => toast.classList.remove('show'), 3000); // يختفي بعد 3 ثواني
-        }
+
         function renderLogin() {
             document.getElementById('app-content').innerHTML = `
                 <div class="login-wrapper card">
@@ -356,8 +371,11 @@
                     body: JSON.stringify({ password })
                 });
                 if (res.status === 401) return alert('كلمة المرور خاطئة');
-                if (!res.ok) throw new Error();
-                
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    return alert('خطأ في الخادم: ' + (err.error || res.status));
+                }
+
                 currentUser = await res.json();
                 localStorage.setItem('batchUser', JSON.stringify(currentUser));
                 currentTab = 'subjects';
@@ -378,21 +396,23 @@
         // ---------- التنقل ----------
         function switchMainTab(tab) {
             currentTab = tab;
-            // تسجيل الحركة في تاريخ التطبيق ليعمل زر الرجوع
             history.pushState({ page: 'main', tab: tab }, '', '#' + tab);
-            document.querySelectorAll('.nav-btn[data-tab]').forEach(btn =>
-                btn.classList.toggle('active', btn.dataset.tab === tab));
             render();
         }
 
         function render() {
             const app = document.getElementById('app-content');
-            
+
+            // تحديث لون الزر النشط في الأعلى (يعمل أيضاً عند زر الرجوع)
+            const activeNav = currentTab === 'subject_details' ? 'subjects' : currentTab;
+            document.querySelectorAll('.nav-btn[data-tab]').forEach(btn =>
+                btn.classList.toggle('active', btn.dataset.tab === activeNav));
+
             // إعادة تشغيل الحركة في كل مرة يتم فيها التبديل
             app.classList.remove('fade-in');
-            void app.offsetWidth; // خدعة برمجية لإجبار المتصفح على إعادة رسم الحركة
+            void app.offsetWidth;
             app.classList.add('fade-in');
-            
+
             app.innerHTML = '';
             if (currentTab === 'subjects') renderSubjects(app);
             else if (currentTab === 'batch') renderBatch(app);
@@ -459,10 +479,10 @@
                     <div class="card-title" style="color: var(--warning); margin-bottom: 15px;">📢 التوجيهات والرسائل الأسبوعية</div>
                     ${isAdmin() ? `
                         <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;">
-                            <textarea id="new-msg-input" class="input-field" rows="3" style="margin: 0; resize: vertical; min-height: 80px;" placeholder="اكتب التوجيه أو الرسالة لهذا الأسبوع..."></textarea>
+                            <textarea id="new-msg-input" class="input-field" rows="4" style="margin: 0; resize: vertical; min-height: 100px;" placeholder="اكتب التوجيه أو الرسالة لهذا الأسبوع..."></textarea>
                             <div style="display: flex; gap: 10px;">
                                 <input type="url" id="new-msg-img" class="input-field" style="margin: 0; flex: 1;" placeholder="رابط صورة السبورة (اختياري)..." dir="ltr">
-                                <button class="btn btn-success" style="width: 120px;" onclick="addWeeklyMessage()">نشر</button>
+                                <button class="btn btn-success" id="publish-msg-btn" style="width: 120px;" onclick="addWeeklyMessage()">نشر</button>
                             </div>
                         </div>
                     ` : ''}
@@ -552,7 +572,7 @@
 
                 container.innerHTML = toolbar + listBody;
 
-                if (isAdmin() && list.length > 0) {
+                if (isAdmin() && list.length > 0 && window.Sortable) {
                     new Sortable(document.getElementById('sortable-list'), {
                         handle: '.drag-handle',
                         animation: 150,
@@ -567,7 +587,15 @@
                 }
             })
             .catch(err => {
-                container.innerHTML = `<div class="empty-state" style="color: red;">❌ فشل الاتصال بالخادم.</div>`;
+                container.innerHTML = `
+                    ${isAdmin() ? `
+                    <div class="toolbar">
+                        <div class="toolbar-info">${isVid ? '🎬' : '📚'} تعذر تحميل القائمة</div>
+                        <button class="btn-add ${isVid ? 'btn-add-video' : 'btn-add-file'}" onclick="openAddModal('${isVid ? 'video' : 'pdf'}')">
+                            ➕ ${isVid ? 'إضافة فيديو' : 'إضافة ملف'}
+                        </button>
+                    </div>` : ''}
+                    <div class="empty-state" style="color: red;">❌ فشل الاتصال بالخادم (${esc(err.message)}).</div>`;
             });
         }
 
@@ -575,7 +603,6 @@
             const kind = linkKind(item.file_url, isVid);
             const title = esc(item.title.replace(/^\[(VIDEO|PDF)\]/, ''));
             const id = Number(item.id);
-            // استخدمنا target="_top" بدلاً من _blank ليتم تسجيل عملية الفتح في النظام ويتيح للرجوع العودة للمادة
             return `
                 <div class="media-item" data-id="${id}">
                     ${isAdmin() ? `<div class="drag-handle" title="اسحب لتغيير الترتيب">↕️</div>` : ''}
@@ -585,7 +612,7 @@
                         <div class="media-meta">${kind.label}</div>
                     </div>
                     <div class="media-actions">
-                        <a class="act-open" style="background: ${kind.color};" href="${esc(safeUrl(item.file_url))}" target="_blank">
+                        <a class="act-open" style="background: ${kind.color};" href="${esc(safeUrl(item.file_url))}" target="_blank" rel="noopener noreferrer">
                             ${isVid ? '▶️ مشاهدة' : '📖 فتح'}
                         </a>
                         <button class="act-icon" title="نسخ الرابط" onclick="copyLink(${id})">📋</button>
@@ -601,7 +628,7 @@
         function copyLink(id) {
             const item = window.lectureMap[id];
             if (!item) return;
-            const done = () => showToast('تم نسخ الرابط بنجاح'); // استخدمنا التوست هنا بدلاً من alert
+            const done = () => showToast('تم نسخ الرابط بنجاح');
             if (navigator.clipboard) navigator.clipboard.writeText(item.file_url).then(done).catch(() => prompt('انسخ الرابط:', item.file_url));
             else prompt('انسخ الرابط:', item.file_url);
         }
@@ -679,6 +706,10 @@
                     return;
                 }
                 qaList.innerHTML = data.map(threadHTML).join('');
+            })
+            .catch(() => {
+                const el = document.getElementById('qa-list');
+                if (el) el.innerHTML = '<div class="empty-state" style="color: red;">❌ فشل جلب المحادثات.</div>';
             });
         }
 
@@ -742,66 +773,98 @@
             .then(() => fetchQA()).catch(() => alert('تعذر إرسال الرد'));
         }
 
-        function deleteQuestion(id) { if (confirm('حذف المحادثة؟')) api(`/api/questions/${id}`, 'DELETE').then(() => fetchQA()); }
-        function deleteReply(id) { if (confirm('حذف الرد؟')) api(`/api/replies/${id}`, 'DELETE').then(() => fetchQA()); }
+        function deleteQuestion(id) { if (confirm('حذف المحادثة؟')) api(`/api/questions/${id}`, 'DELETE').then(() => fetchQA()).catch(() => alert('تعذر الحذف')); }
+        function deleteReply(id) { if (confirm('حذف الرد؟')) api(`/api/replies/${id}`, 'DELETE').then(() => fetchQA()).catch(() => alert('تعذر الحذف')); }
 
         // ---------- الرسائل الأسبوعية ----------
         function fetchWeeklyMessages() {
             const container = document.getElementById('messages-container');
+            if (!container) return;
             api('/api/messages').then(msgs => {
-                window.weeklyMessages = msgs; // حفظ الرسائل للوصول إليها عند التعديل
-                if (!msgs || msgs.length === 0) {
+                window.weeklyMessages = msgs || [];
+                if (window.weeklyMessages.length === 0) {
                     container.innerHTML = '<div style="color: var(--text-muted); text-align: center; padding: 20px; border: 1px dashed var(--border); border-radius: 8px;">لا توجد رسائل أسبوعية حتى الآن.</div>';
                     return;
                 }
-                container.innerHTML = msgs.map((msg, index) => `
-                    <div style="background: var(--item-bg); border-right: 4px solid var(--warning); padding: 15px; margin-bottom: 10px; border-radius: 4px; position: relative;">
-                        <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 5px;">الأسبوع ${msgs.length - index} ${esc(msg.date)}</div>
-                        ${msg.text ? `<div style="color: white; font-size: 15px; margin-bottom: 8px; white-space: pre-wrap; word-break: break-word;">${esc(msg.text)}</div>` : ''}
+                container.innerHTML = window.weeklyMessages.map((msg, index) => `
+                    <div class="week-msg">
+                        <div class="week-msg-head">
+                            <div class="week-msg-date">الأسبوع ${window.weeklyMessages.length - index} • ${esc(msg.date)}</div>
+                            ${isAdmin() ? `
+                                <div class="week-msg-actions">
+                                    <button onclick="editMessage(${Number(msg.id)})" style="color: var(--primary);">تعديل ✏️</button>
+                                    <button onclick="deleteMessage(${Number(msg.id)})" style="color: var(--danger);">حذف 🗑️</button>
+                                </div>
+                            ` : ''}
+                        </div>
+                        ${msg.text ? `<div class="week-msg-text">${esc(msg.text)}</div>` : ''}
                         ${msg.image_url ? `<img src="${esc(safeUrl(msg.image_url))}" style="max-width: 100%; border-radius: 8px; border: 1px solid var(--border); margin-top: 5px;" alt="مرفق السبورة">` : ''}
-                        
-                        ${isAdmin() ? `
-                            <div style="position: absolute; top: 15px; left: 15px; display: flex; gap: 12px;">
-                                <button onclick="editMessage(${Number(msg.id)})" style="background: none; border: none; color: var(--primary); cursor: pointer; font-size: 13px;">تعديل ✏️</button>
-                                <button onclick="deleteMessage(${Number(msg.id)})" style="background: none; border: none; color: var(--danger); cursor: pointer; font-size: 13px;">حذف 🗑️</button>
-                            </div>
-                        ` : ''}
                     </div>
                 `).join('');
+            }).catch(() => {
+                container.innerHTML = '<div class="empty-state" style="color: red;">❌ فشل جلب الرسائل.</div>';
             });
         }
+
         function addWeeklyMessage() {
             const input = document.getElementById('new-msg-input');
             const imgInput = document.getElementById('new-msg-img');
+            const btn = document.getElementById('publish-msg-btn');
             const text = input.value.trim();
             const image_url = imgInput ? imgInput.value.trim() : '';
-            
-            if (!text && !image_url) return; // يجب إدخال نص أو صورة على الأقل
-            
+
+            if (!text && !image_url) return showToast('اكتب نصاً أو ضع رابط صورة', '⚠️');
+
+            btn.disabled = true;
             api('/api/messages/add', 'POST', { text, image_url, date: new Date().toLocaleDateString('ar-IQ') })
-            .then(() => { 
-                input.value = ''; 
-                if(imgInput) imgInput.value = ''; 
-                fetchWeeklyMessages(); 
-            }).catch(() => showToast('تعذر نشر الرسالة', '❌'));
-        }
-        function editMessage(id) {
-            const msg = window.weeklyMessages.find(m => m.id === id);
-            if (!msg) return;
-            
-            const newText = prompt('قم بتعديل الرسالة:', msg.text);
-            if (newText === null) return; // تم الإلغاء
-            
-            api(`/api/messages/${id}`, 'PUT', { text: newText.trim() })
             .then(() => {
+                input.value = '';
+                if (imgInput) imgInput.value = '';
+                showToast('تم نشر الرسالة');
+                fetchWeeklyMessages();
+            })
+            .catch(() => showToast('تعذر نشر الرسالة', '❌'))
+            .finally(() => { btn.disabled = false; });
+        }
+
+        function editMessage(id) {
+            const msg = (window.weeklyMessages || []).find(m => Number(m.id) === Number(id));
+            if (!msg) return;
+            document.getElementById('edit-msg-id').value = id;
+            document.getElementById('edit-msg-text').value = msg.text || '';
+            document.getElementById('editMsgModal').style.display = 'flex';
+        }
+
+        function closeEditMsg() {
+            document.getElementById('editMsgModal').style.display = 'none';
+        }
+
+        function saveEditedMessage() {
+            const id = Number(document.getElementById('edit-msg-id').value);
+            const text = document.getElementById('edit-msg-text').value.trim();
+            const msg = (window.weeklyMessages || []).find(m => Number(m.id) === id);
+
+            if (!text && !(msg && msg.image_url)) return showToast('الرسالة فارغة', '⚠️');
+
+            const btn = document.getElementById('edit-msg-save');
+            btn.disabled = true;
+            api(`/api/messages/${id}`, 'PUT', { text })
+            .then(() => {
+                closeEditMsg();
                 showToast('تم تعديل الرسالة بنجاح');
                 fetchWeeklyMessages();
             })
-            .catch(() => {
-                showToast('تعذر التعديل، تأكد من إضافة مسار PUT في الباك إند', '❌');
-            });
+            .catch(() => showToast('تعذر التعديل', '❌'))
+            .finally(() => { btn.disabled = false; });
         }
-        function deleteMessage(id) { if (confirm('حذف الرسالة؟')) api(`/api/messages/${id}`, 'DELETE').then(() => fetchWeeklyMessages()); }
+
+        function deleteMessage(id) {
+            if (confirm('حذف الرسالة؟')) {
+                api(`/api/messages/${id}`, 'DELETE')
+                .then(() => fetchWeeklyMessages())
+                .catch(() => showToast('تعذر الحذف', '❌'));
+            }
+        }
 
         init();
     </script>

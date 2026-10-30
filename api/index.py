@@ -6,6 +6,7 @@ import json
 import urllib.request
 import psycopg2
 import psycopg2.extras
+import html
 from flask import Flask, Response, jsonify, request
 
 app = Flask(__name__)
@@ -286,33 +287,42 @@ def messages_list():
     # طالما أنك تستخدم SELECT * ، فسيتم جلب رابط الصورة تلقائياً بمجرد إضافتك للعمود في قاعدة البيانات
     return jsonify(run("SELECT * FROM messages ORDER BY id DESC"))
 
+def send_telegram_long(header, text, footer=""):
+    """يقسم الرسالة الطويلة إلى أجزاء ويهرّب رموز HTML."""
+    chunks = [text[i:i + 3000] for i in range(0, len(text), 3000)] or [""]
+    for i, chunk in enumerate(chunks):
+        part = html.escape(chunk)
+        if i == 0:
+            part = header + part
+        if i == len(chunks) - 1:
+            part += footer
+        send_telegram_notification(part)
+
+
 @app.post("/api/messages/add")
 def messages_add():
     denied = admin_only()
     if denied:
         return denied
-    
+
     d = body()
-    text = str(d.get("text", "")).strip()[:2000]
-    image_url = str(d.get("image_url", "")).strip() # استقبال رابط الصورة
-    
+    text = str(d.get("text", "")).strip()[:10000]
+    image_url = str(d.get("image_url", "")).strip()
+
     if not text and not image_url:
         return jsonify({"error": "يجب إدخال نص أو صورة"}), 400
-        
+
     when = str(d.get("date") or date.today().isoformat())[:30]
-    
-    # تحديث الاستعلام ليشمل الصورة
-    run("INSERT INTO messages (text, date, image_url) VALUES (%s, %s, %s)", (text, when, image_url))
-    
-    # --- إرسال الإشعار لجروب تيليجرام ---
+
+    run("INSERT INTO messages (text, date, image_url) VALUES (%s, %s, %s)",
+        (text, when, image_url), fetch=False)
+
     try:
-        msg = f"📣 <b>تبليغ جديد للدفعة ({when})</b>\n\n{text}"
-        if image_url:
-            msg += f"\n\n🖼️ <b>صورة مرفقة:</b> {image_url}"
-        send_telegram_notification(msg)
+        footer = f"\n\n🖼️ <b>صورة مرفقة:</b> {html.escape(image_url)}" if image_url else ""
+        send_telegram_long(f"📣 <b>تبليغ جديد للدفعة ({html.escape(when)})</b>\n\n", text, footer)
     except Exception as e:
-        print("Telegram Error:", e)
-        
+        app.logger.error(f"Telegram Error: {e}")
+
     return jsonify({"success": True})
 
 

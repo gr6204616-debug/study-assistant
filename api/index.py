@@ -232,7 +232,7 @@ def questions_add():
 @app.post("/api/questions/<int:q_id>/reply")
 def questions_reply(q_id):
     d = body()
-    text = str(d.get("text", "")).strip()[:2000]
+    text = str(d.get("text", "")).strip()[:4000]
     if not text:
         return jsonify({"error": "الرد فارغ"}), 400
     if not run("SELECT 1 FROM questions WHERE id = %s", (q_id,)):

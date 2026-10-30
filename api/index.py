@@ -1,12 +1,14 @@
 import hmac
+import html
+import json
 import os
+import re
+import urllib.request
 from datetime import date
 from pathlib import Path
-import json
-import urllib.request
+
 import psycopg2
 import psycopg2.extras
-import html
 from flask import Flask, Response, jsonify, request
 
 app = Flask(__name__)
@@ -15,6 +17,8 @@ DATABASE_URL = os.environ.get("DATABASE_URL") or os.environ.get("POSTGRES_URL")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
 # رمز الأدمن مشتق من كلمة المرور (لا تُخزَّن كلمة المرور نفسها في المتصفح)
 ADMIN_TOKEN = hmac.new(ADMIN_PASSWORD.encode(), b"study-admin", "sha256").hexdigest()
+
+SITE_URL = "https://study-assistant-ivory-two.vercel.app"
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS lectures (
@@ -51,6 +55,8 @@ CREATE TABLE IF NOT EXISTS replies (
 """
 
 _schema_ready = False
+
+MSG_MAX = 10000  # الحد الأقصى لطول الرسالة الأسبوعية
 
 
 def run(sql, params=(), fetch=True):
@@ -96,6 +102,65 @@ def on_error(e):
     return jsonify({"error": "خطأ في الخادم"}), 500
 
 
+# ---------- إرسال رسائل تيليجرام ----------
+def send_telegram_notification(message):
+    """يرسل رسالة إلى جروب الطلاب (TELEGRAM_GROUP_CHAT_ID)."""
+    token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    chat_id = os.environ.get("TELEGRAM_GROUP_CHAT_ID")
+
+    # إذا نسينا المتغيرات في Vercel، الدالة تتوقف بصمت دون تخريب الموقع
+    if not token or not chat_id:
+        return
+
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+    payload = json.dumps({
+        "chat_id": chat_id,
+        "text": message,
+        "parse_mode": "HTML",
+        "disable_web_page_preview": True,
+    }).encode("utf-8")
+
+    req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
+
+    try:
+        urllib.request.urlopen(req, timeout=5)  # مهلة 5 ثوانٍ كي لا يتجمد الموقع
+    except Exception as e:
+        app.logger.error(f"فشل إرسال إشعار تيليجرام: {e}")
+
+
+def send_telegram_reply(chat_id, message):
+    """يرد على محادثة معينة (يستعمله الـ webhook)."""
+    token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    if not token:
+        return
+
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+    payload = json.dumps({
+        "chat_id": chat_id,
+        "text": message,
+        "parse_mode": "HTML",
+        "disable_web_page_preview": True,
+    }).encode("utf-8")
+
+    req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
+    try:
+        urllib.request.urlopen(req, timeout=5)
+    except Exception as e:
+        app.logger.error(f"فشل إرسال الرد: {e}")
+
+
+def send_telegram_long(header, text, footer=""):
+    """يقسّم الرسالة الطويلة إلى أجزاء (حد تيليجرام 4096) ويهرّب رموز HTML."""
+    chunks = [text[i:i + 3000] for i in range(0, len(text), 3000)] or [""]
+    for i, chunk in enumerate(chunks):
+        part = html.escape(chunk)
+        if i == 0:
+            part = header + part
+        if i == len(chunks) - 1:
+            part += footer
+        send_telegram_notification(part)
+
+
 # ---------- الصفحة الرئيسية ----------
 INDEX_FILE = Path(__file__).resolve().parent.parent / "public" / "index.html"
 
@@ -127,7 +192,10 @@ def updates_check():
 @app.get("/api/lectures/<subject_id>")
 def lectures_list(subject_id):
     # الترتيب أولاً حسب display_order ثم حسب id
-    return jsonify(run("SELECT * FROM lectures WHERE subject_id = %s ORDER BY display_order ASC, id ASC", (subject_id,)))
+    return jsonify(run(
+        "SELECT * FROM lectures WHERE subject_id = %s ORDER BY display_order ASC, id ASC",
+        (subject_id,),
+    ))
 
 
 @app.post("/api/lectures/add")
@@ -145,21 +213,21 @@ def lectures_add():
         "INSERT INTO lectures (subject_id, title, file_url, type) VALUES (%s,%s,%s,%s) RETURNING id",
         (subject, title, url, d.get("type")),
     )[0]
-    
-    # --- إرسال الإشعار لجروب تيليجرام ---
+
     # --- إرسال الإشعار لجروب تيليجرام ---
     try:
+        clean_title = re.sub(r"^\[(VIDEO|PDF)\]", "", title)
         msg = (
             f"📢 <b>تم رفع ملف جديد!</b>\n\n"
-            f"📚 المادة: {subject}\n"
-            f"📄 العنوان: {title}\n\n"
+            f"📚 المادة: {html.escape(subject)}\n"
+            f"📄 العنوان: {html.escape(clean_title)}\n\n"
             f"🌐 <b>لتحميل الملف والوصول لجميع المواد، ادخل إلى المنصة:</b>\n"
-            f"<a href='https://study-assistant-ivory-two.vercel.app'>https://study-assistant-ivory-two.vercel.app</a>"
+            f"<a href='{SITE_URL}'>{SITE_URL}</a>"
         )
         send_telegram_notification(msg)
     except Exception:
         pass
-        
+
     return jsonify(row)
 
 
@@ -182,6 +250,26 @@ def lectures_update(lec_id):
     if not title:
         return jsonify({"error": "العنوان فارغ"}), 400
     run("UPDATE lectures SET title = %s WHERE id = %s", (title, lec_id), fetch=False)
+    return jsonify({"ok": True})
+
+
+# ---------- ترتيب المحاضرات ----------
+@app.put("/api/lectures/reorder")
+def lectures_reorder():
+    denied = admin_only()
+    if denied:
+        return denied
+
+    # نتوقع استلام مصفوفة تحتوي على معرفات الملفات وترتيبها الجديد
+    order_list = body().get("order", [])
+    if not order_list:
+        return jsonify({"error": "قائمة الترتيب فارغة"}), 400
+
+    # تحديث ترتيب كل ملف في قاعدة البيانات
+    for item in order_list:
+        run("UPDATE lectures SET display_order = %s WHERE id = %s",
+            (item.get("display_order"), item.get("id")), fetch=False)
+
     return jsonify({"ok": True})
 
 
@@ -281,22 +369,10 @@ def admin_pending():
 
 
 # ----------- الرسائل الأسبوعية -----------
-
 @app.get("/api/messages")
 def messages_list():
-    # طالما أنك تستخدم SELECT * ، فسيتم جلب رابط الصورة تلقائياً بمجرد إضافتك للعمود في قاعدة البيانات
+    # SELECT * يجلب رابط الصورة تلقائياً
     return jsonify(run("SELECT * FROM messages ORDER BY id DESC"))
-
-def send_telegram_long(header, text, footer=""):
-    """يقسم الرسالة الطويلة إلى أجزاء ويهرّب رموز HTML."""
-    chunks = [text[i:i + 3000] for i in range(0, len(text), 3000)] or [""]
-    for i, chunk in enumerate(chunks):
-        part = html.escape(chunk)
-        if i == 0:
-            part = header + part
-        if i == len(chunks) - 1:
-            part += footer
-        send_telegram_notification(part)
 
 
 @app.post("/api/messages/add")
@@ -306,39 +382,47 @@ def messages_add():
         return denied
 
     d = body()
-    text = str(d.get("text", "")).strip()[:10000]
-    image_url = str(d.get("image_url", "")).strip()
+    text = str(d.get("text", "")).strip()[:MSG_MAX]
+    image_url = str(d.get("image_url", "")).strip()[:2000]
 
     if not text and not image_url:
         return jsonify({"error": "يجب إدخال نص أو صورة"}), 400
 
     when = str(d.get("date") or date.today().isoformat())[:30]
 
-    run("INSERT INTO messages (text, date, image_url) VALUES (%s, %s, %s)",
-        (text, when, image_url), fetch=False)
+    # fetch=False ضروري: INSERT لا يُرجع نتائج
+    run(
+        "INSERT INTO messages (text, date, image_url) VALUES (%s, %s, %s)",
+        (text, when, image_url),
+        fetch=False,
+    )
 
+    # --- إرسال الإشعار لجروب تيليجرام (يُقسّم تلقائياً إذا كان طويلاً) ---
     try:
         footer = f"\n\n🖼️ <b>صورة مرفقة:</b> {html.escape(image_url)}" if image_url else ""
-        send_telegram_long(f"📣 <b>تبليغ جديد للدفعة ({html.escape(when)})</b>\n\n", text, footer)
+        send_telegram_long(
+            f"📣 <b>تبليغ جديد للدفعة ({html.escape(when)})</b>\n\n",
+            text,
+            footer,
+        )
     except Exception as e:
         app.logger.error(f"Telegram Error: {e}")
 
     return jsonify({"success": True})
 
 
-# --- مسار التعديل الجديد (أضفه تحت الدوال السابقة) ---
 @app.put("/api/messages/<int:msg_id>")
 def edit_message(msg_id):
     denied = admin_only()
     if denied:
         return denied
-        
+
     d = body()
-    new_text = str(d.get("text", "")).strip()[:2000]
-    
-    # التعديل هنا: إضافة fetch=False لمنع الانهيار
+    new_text = str(d.get("text", "")).strip()[:MSG_MAX]
+
     run("UPDATE messages SET text = %s WHERE id = %s", (new_text, msg_id), fetch=False)
     return jsonify({"success": True})
+
 
 @app.delete("/api/messages/<int:m_id>")
 def messages_delete(m_id):
@@ -347,146 +431,97 @@ def messages_delete(m_id):
         return denied
     run("DELETE FROM messages WHERE id = %s", (m_id,), fetch=False)
     return jsonify({"ok": True})
-def send_telegram_notification(message):
-    token = os.environ.get("TELEGRAM_BOT_TOKEN")
-    chat_id = os.environ.get("TELEGRAM_GROUP_CHAT_ID")
-    
-    # إذا نسينا المتغيرات في Vercel، الدالة تتوقف بصمت دون تخريب الموقع
-    if not token or not chat_id:
-        return
-    
-    url = f"https://api.telegram.org/bot{token}/sendMessage"
-    payload = json.dumps({
-        "chat_id": chat_id,
-        "text": message,
-        "parse_mode": "HTML"
-    }).encode('utf-8')
-    
-    req = urllib.request.Request(url, data=payload, headers={'Content-Type': 'application/json'})
-    
-    try:
-        urllib.request.urlopen(req, timeout=5) # مهلة 5 ثوانٍ كي لا يتجمد الموقع
-    except Exception as e:
-        app.logger.error(f"فشل إرسال إشعار تيليجرام: {e}")
-@app.put("/api/lectures/reorder")
-def lectures_reorder():
-    denied = admin_only()
-    if denied:
-        return denied
-    
-    # نتوقع استلام مصفوفة تحتوي على معرفات الملفات وترتيبها الجديد
-    order_list = body().get("order", [])
-    if not order_list:
-        return jsonify({"error": "قائمة الترتيب فارغة"}), 400
-        
-    # تحديث ترتيب كل ملف في قاعدة البيانات
-    for item in order_list:
-        run("UPDATE lectures SET display_order = %s WHERE id = %s", 
-            (item.get("display_order"), item.get("id")), fetch=False)
-            
-    return jsonify({"ok": True})
-# أضف هذه الدالة تحت دالة send_telegram_notification السابقة
-def send_telegram_reply(chat_id, message):
-    token = os.environ.get("TELEGRAM_BOT_TOKEN")
-    if not token: return
-    
-    url = f"https://api.telegram.org/bot{token}/sendMessage"
-    payload = json.dumps({
-        "chat_id": chat_id,
-        "text": message,
-        "parse_mode": "HTML"
-    }).encode('utf-8')
-    
-    req = urllib.request.Request(url, data=payload, headers={'Content-Type': 'application/json'})
-    try:
-        urllib.request.urlopen(req, timeout=5)
-    except Exception as e:
-        app.logger.error(f"فشل إرسال الرد: {e}")
 
-# أضف هذا الـ Route الجديد في نهاية الملف لاستقبال الرسائل
+
+# ----------- بوت تيليجرام: استقبال الرسائل -----------
 @app.post("/api/telegram/webhook")
 def telegram_webhook():
     update = request.get_json(silent=True) or {}
-    
+
     if "message" in update and "text" in update["message"]:
         chat_id = update["message"]["chat"]["id"]
         text = update["message"]["text"]
-        
+
         # 1. الرد على كلمات الجدول والتبليغات
         if any(keyword in text for keyword in ["باچر شعدنة", "شعدنا باجر", "الجدول", "تبليغ"]):
             rows = run("SELECT text, date FROM messages ORDER BY id DESC LIMIT 1")
             if rows:
-                msg = f"📅 <b>تبليغ الأسبوع ({rows[0]['date']}):</b>\n\n{rows[0]['text']}"
+                msg = (
+                    f"📅 <b>تبليغ الأسبوع ({html.escape(str(rows[0]['date']))}):</b>\n\n"
+                    f"{html.escape(rows[0]['text'] or '')}"
+                )
             else:
                 msg = "لا توجد تبليغات مسجلة حالياً."
             send_telegram_reply(chat_id, msg)
-            
-        # 2. الرد على طلب الملفات والمحاضرات بشكل مخصص وبحث ذكي
-        # 2. الرد على طلب الملفات والمحاضرات بشكل مخصص وبحث ذكي
-        # يشترط وجود كلمة تدل على الطلب بالإضافة لكلمة ملف أو محاضرة لكي لا يتدخل في المحادثات العادية
-        elif any(req in text for req in ["اريد", "ريد", "دز", "محتاج", "ممكن", "عنده", "عدكم", "وين", "ارسل"]) and any(tgt in text for tgt in ["ملف", "ملفات", "محاضرة", "محاضره", "ملزمة", "ملزمه"]):
-            # قائمة الكلمات التي سيتجاهلها البوت تماماً لكي لا تفسد البحث
+
+        # 2. الرد على طلب الملفات والمحاضرات (بحث ذكي)
+        # يشترط وجود كلمة طلب + كلمة ملف/محاضرة كي لا يتدخل في المحادثات العادية
+        elif (
+            any(rq in text for rq in ["اريد", "ريد", "دز", "محتاج", "ممكن", "عنده", "عدكم", "وين", "ارسل"])
+            and any(tgt in text for tgt in ["ملف", "ملفات", "محاضرة", "محاضره", "ملزمة", "ملزمه"])
+        ):
+            # كلمات يتجاهلها البوت كي لا تفسد البحث
             stop_words = [
                 # كلمات الطلب والرجاء
-                "اريد", "ريد", "محتاج", "ممكن", "دز", "دزلي", "دزولي", "انطيني", "عطني", 
+                "اريد", "ريد", "محتاج", "ممكن", "دز", "دزلي", "دزولي", "انطيني", "عطني",
                 "بلا", "زحمة", "زحمه", "فدوة", "فدوه", "رحم", "والديك", "الله", "يخليك",
                 "عفية", "عفيه", "سمحتوا", "احد", "عنده", "عدكم", "موجود",
-                
+
                 # المصطلحات العامة للمواد
                 "ملف", "الملف", "ملفات", "ملزمة", "الملزمة", "ملازم", "ملزمه", "الملزمه",
                 "محاضرة", "المحاضرة", "محاضره", "المحاضره", "محاضرات", "رقم", "مادة", "المادة", "ماده", "الماده",
                 "pdf", "بي", "دي", "اف", "تسجيل", "فيديو",
-                
+
                 # حروف الجر وكلمات الربط العراقية
                 "مال", "مالت", "عن", "بخصوص", "حق",
-                
+
                 # التحيات
-                "السلام", "عليكم", "هلو", "مرحبا", "شباب", "بنات", "اخوان", "يا"
+                "السلام", "عليكم", "هلو", "مرحبا", "شباب", "بنات", "اخوان", "يا",
             ]
             words = text.split()
             keywords = [w for w in words if w not in stop_words]
-            
+
             aliases = {
-                # 1. التحليل العددي (حسب قاعدة بياناتك: num_analysis)
+                # 1. التحليل العددي (num_analysis)
                 "عددي": "num_analysis",
                 "العددي": "num_analysis",
                 "تحليل": "num_analysis",
                 "التحليل": "num_analysis",
                 "نيومركال": "num_analysis",
-                
-                # 2. النظرية الاحتسابية (حسب قاعدة بياناتك: computation)
+
+                # 2. النظرية الاحتسابية (computation)
                 "احتسابية": "computation",
                 "الاحتسابية": "computation",
                 "احتسابيه": "computation",
                 "الاحتسابيه": "computation",
                 "نظرية": "computation",
                 "النظريه": "computation",
-                
-                # 3. برمجة شيئية (حسب قاعدة بياناتك: oop)
+
+                # 3. برمجة شيئية (oop)
                 "شيئية": "oop",
                 "الشيئية": "oop",
                 "شيئيه": "oop",
                 "الشيئيه": "oop",
                 "اوب": "oop",
                 "oop": "oop",
-                
-                # 4. خوارزميات AI (افترضت أن المعرف هو: ai - تأكد منه)
-                "خوارزميات": "ai",
-                "الخوارزميات": "ai",
-                "خوارزميه": "ai",
-                "الخوارزميه": "ai",
-                "ذكاء": "ai",
-                "الذكاء": "ai",
-                "ai": "ai",
-                
-                # 5. لغة بايثون (افترضت أن المعرف هو: python - تأكد منه)
+
+                # 4. خوارزميات AI (ai_algo)
+                "خوارزميات": "ai_algo",
+                "الخوارزميات": "ai_algo",
+                "خوارزميه": "ai_algo",
+                "الخوارزميه": "ai_algo",
+                "ذكاء": "ai_algo",
+                "الذكاء": "ai_algo",
+                "ai": "ai_algo",
+
+                # 5. لغة بايثون (python)
                 "بايثون": "python",
                 "البايثون": "python",
                 "بايثن": "python",
                 "python": "python",
                 "py": "python",
-                
-                # 6. اللغة العربية (افترضت أن المعرف هو: arabic - تأكد منه)
+
+                # 6. اللغة العربية (arabic)
                 "عربي": "arabic",
                 "العربي": "arabic",
                 "عربية": "arabic",
@@ -531,38 +566,55 @@ def telegram_webhook():
                 "تاسعة": "التاسعة",
                 "10": "العاشرة",
                 "العاشرة": "العاشرة",
-                "عاشرة": "العاشرة"
+                "عاشرة": "العاشرة",
             }
-            
+
             search_terms = []
             for kw in keywords:
                 cleaned_kw = aliases.get(kw, kw)
                 if cleaned_kw not in search_terms:
                     search_terms.append(cleaned_kw)
-                    
+
             if not search_terms:
-                send_telegram_reply(chat_id, "يرجى تحديد المادة التي تريدها بدقة، مثلاً: 'اريد ملف بايثون المحاضرة الاولى'")
+                send_telegram_reply(
+                    chat_id,
+                    "يرجى تحديد المادة التي تريدها بدقة، مثلاً: 'اريد ملف بايثون المحاضرة الاولى'",
+                )
             else:
                 query = "SELECT title, file_url, subject_id FROM lectures WHERE "
                 conditions = []
                 params = []
                 for term in search_terms:
+                    # كلمة "كاملة" ليست شرط بحث، فلا نضيفها كشرط على العنوان
+                    if term == "كاملة":
+                        continue
                     conditions.append("(title ILIKE %s OR subject_id ILIKE %s)")
                     params.extend([f"%{term}%", f"%{term}%"])
-                
-                query += " AND ".join(conditions) + " ORDER BY id DESC LIMIT 3"
+
+                if not conditions:
+                    send_telegram_reply(
+                        chat_id,
+                        "يرجى تحديد اسم المادة، مثلاً: 'اريد ملفات بايثون كاملة'",
+                    )
+                    return jsonify({"ok": True})
+
+                has_full = "كاملة" in search_terms
+                query += " AND ".join(conditions) + f" ORDER BY id DESC LIMIT {10 if has_full else 3}"
                 rows = run(query, tuple(params))
-                
+
                 if rows:
                     msg = "🔍 <b>تفضل، وجدت هذه الملفات:</b>\n\n"
                     for r in rows:
-                        msg += f"▪️ {r['subject_id']}: <a href='{r['file_url']}'>{r['title']}</a>\n"
-                    msg += "\n🌐 <b>تصفح جميع المواد والشروحات على:</b>\n<a href='https://study-assistant-ivory-two.vercel.app'>منصة مساعد دراسي</a>"
+                        clean_title = re.sub(r"^\[(VIDEO|PDF)\]", "", r["title"])
+                        msg += (
+                            f"▪️ {html.escape(r['subject_id'])}: "
+                            f"<a href='{html.escape(r['file_url'], quote=True)}'>{html.escape(clean_title)}</a>\n"
+                        )
+                    msg += f"\n🌐 <b>تصفح جميع المواد والشروحات على:</b>\n<a href='{SITE_URL}'>منصة مساعد دراسي</a>"
                 else:
-                    joined_terms = ' '.join(search_terms)
+                    joined_terms = html.escape(" ".join(t for t in search_terms if t != "كاملة"))
                     msg = f"لم أجد أي ملف يطابق ( {joined_terms} ). تأكد من كتابة اسم المادة ورقم المحاضرة بشكل صحيح."
-                
+
                 send_telegram_reply(chat_id, msg)
 
-    # هذا السطر هو الذي تسبب بالخطأ لأنه كان مفقوداً أو موضوعاً بمسافة خاطئة
     return jsonify({"ok": True})

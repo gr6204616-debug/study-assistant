@@ -326,7 +326,8 @@ def edit_message(msg_id):
     d = body()
     new_text = str(d.get("text", "")).strip()[:2000]
     
-    run("UPDATE messages SET text = %s WHERE id = %s", (new_text, msg_id))
+    # التعديل هنا: إضافة fetch=False لمنع الانهيار
+    run("UPDATE messages SET text = %s WHERE id = %s", (new_text, msg_id), fetch=False)
     return jsonify({"success": True})
 
 @app.delete("/api/messages/<int:m_id>")

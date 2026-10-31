@@ -184,8 +184,16 @@ def login():
 # ---------- التحديثات (الشارة الحمراء) ----------
 @app.get("/api/updates/check")
 def updates_check():
-    rows = run("SELECT subject_id, MAX(id) AS max_id FROM lectures GROUP BY subject_id")
-    return jsonify({r["subject_id"]: r["max_id"] for r in rows})
+    rows = run(
+        "SELECT subject_id, MAX(id) AS max_id, "
+        "COUNT(*) FILTER (WHERE LEFT(title, 7) = '[VIDEO]') AS videos, "
+        "COUNT(*) FILTER (WHERE LEFT(title, 7) <> '[VIDEO]') AS files "
+        "FROM lectures GROUP BY subject_id"
+    )
+    return jsonify({
+        r["subject_id"]: {"max_id": r["max_id"], "files": r["files"], "videos": r["videos"]}
+        for r in rows
+    })
 
 
 # ---------- المحاضرات ----------
@@ -265,10 +273,21 @@ def lectures_reorder():
     if not order_list:
         return jsonify({"error": "قائمة الترتيب فارغة"}), 400
 
-    # تحديث ترتيب كل ملف في قاعدة البيانات
-    for item in order_list:
-        run("UPDATE lectures SET display_order = %s WHERE id = %s",
-            (item.get("display_order"), item.get("id")), fetch=False)
+    try:
+        pairs = [(int(item["display_order"]), int(item["id"])) for item in order_list]
+    except (KeyError, TypeError, ValueError):
+        return jsonify({"error": "بيانات غير صالحة"}), 400
+
+    # تحديث الترتيب كله في اتصال واحد (أسرع بكثير من اتصال لكل ملف)
+    conn = psycopg2.connect(DATABASE_URL)
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                psycopg2.extras.execute_batch(
+                    cur, "UPDATE lectures SET display_order = %s WHERE id = %s", pairs
+                )
+    finally:
+        conn.close()
 
     return jsonify({"ok": True})
 
@@ -436,6 +455,13 @@ def messages_delete(m_id):
 # ----------- بوت تيليجرام: استقبال الرسائل -----------
 @app.post("/api/telegram/webhook")
 def telegram_webhook():
+    # حماية اختيارية: إذا ضُبط TELEGRAM_WEBHOOK_SECRET نقبل فقط الطلبات القادمة من تيليجرام
+    secret = os.environ.get("TELEGRAM_WEBHOOK_SECRET")
+    if secret and not hmac.compare_digest(
+        request.headers.get("X-Telegram-Bot-Api-Secret-Token", ""), secret
+    ):
+        return jsonify({"error": "غير مصرح"}), 401
+
     update = request.get_json(silent=True) or {}
 
     if "message" in update and "text" in update["message"]:

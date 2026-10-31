@@ -249,6 +249,66 @@
             .login-wrapper { margin: 40px auto; }
         }
 
+        /* ---- الجرس والتنبيهات ---- */
+        .bell-btn { font-size: 16px; padding: 6px 12px; }
+        .bell-btn.on { border-color: var(--warning); background: rgba(245,158,11,0.12); }
+        .nav-btn { position: relative; }
+        .nav-dot { display: none; position: absolute; top: -4px; left: -4px; width: 10px; height: 10px; border-radius: 50%;
+            background: var(--danger); box-shadow: 0 0 8px var(--danger); }
+        #alert-banner {
+            position: fixed; top: -120px; left: 50%; transform: translateX(-50%); width: min(92vw, 460px);
+            background: rgba(30, 41, 59, 0.97); border: 1px solid var(--warning); border-radius: 14px;
+            padding: 12px 14px; display: flex; gap: 12px; align-items: center; z-index: 9998; cursor: pointer;
+            box-shadow: 0 12px 30px rgba(0,0,0,0.5); transition: top 0.45s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            backdrop-filter: blur(8px);
+        }
+        #alert-banner.show { top: 14px; }
+        #alert-icon { font-size: 26px; }
+        #alert-title { font-weight: 700; color: var(--warning); }
+        #alert-body { color: var(--text-main); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        #alert-banner button { background: none; border: none; color: var(--text-muted); font-size: 22px; cursor: pointer; }
+
+        /* ---- صور الرسالة الأسبوعية ---- */
+        .gallery { display: grid; gap: 6px; margin-top: 10px; border-radius: 10px; overflow: hidden; }
+        .gallery.n1 { grid-template-columns: 1fr; }
+        .gallery.n2, .gallery.n4 { grid-template-columns: 1fr 1fr; }
+        .gallery.n3, .gallery.n5, .gallery.n6 { grid-template-columns: repeat(3, 1fr); }
+        .gallery img { width: 100%; height: 100%; aspect-ratio: 4 / 3; object-fit: cover; cursor: zoom-in; display: block;
+            background: var(--bg-color); transition: filter 0.2s; }
+        .gallery.n1 img { aspect-ratio: auto; max-height: 480px; object-fit: contain; }
+        .gallery img:hover { filter: brightness(1.1); }
+
+        .uploader { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+        .upload-btn { background: transparent; border: 1px dashed var(--primary); color: var(--primary); padding: 10px 14px;
+            border-radius: 8px; cursor: pointer; font-weight: 700; }
+        .upload-btn:hover { background: rgba(59,130,246,0.1); }
+        .previews { display: flex; gap: 8px; flex-wrap: wrap; }
+        .preview { position: relative; width: 72px; height: 72px; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); }
+        .preview img { width: 100%; height: 100%; object-fit: cover; }
+        .preview button { position: absolute; top: 2px; left: 2px; width: 22px; height: 22px; border-radius: 50%; border: none;
+            background: rgba(0,0,0,0.7); color: #fff; cursor: pointer; font-size: 14px; line-height: 1; }
+
+        #lightbox { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.92); z-index: 10000;
+            justify-content: center; align-items: center; padding: 16px; }
+        #lightbox.show { display: flex; }
+        #lightbox img { max-width: 100%; max-height: 100%; border-radius: 8px; }
+        #lightbox button { position: absolute; top: 12px; right: 16px; background: none; border: none; color: #fff; font-size: 34px; cursor: pointer; }
+
+        /* ---- تحسينات الشكل ---- */
+        body { background:
+            radial-gradient(circle at 15% 0%, rgba(59,130,246,0.10), transparent 40%),
+            radial-gradient(circle at 85% 100%, rgba(139,92,246,0.08), transparent 45%),
+            var(--bg-color); background-attachment: fixed; min-height: 100vh; }
+        .subject-card { text-align: center; position: relative; border-top: 4px solid var(--accent); }
+        .subject-card:hover { border-color: var(--accent); box-shadow: 0 10px 25px -5px var(--accent-glow); }
+        .subject-icon { width: 76px; height: 76px; margin: 4px auto 12px; border-radius: 22px; display: flex; align-items: center;
+            justify-content: center; font-size: 40px; background: var(--accent-soft); }
+        .subject-card .btn { background: var(--accent); }
+        .subject-card .btn:hover { filter: brightness(1.1); }
+        .week-msg { border-radius: 10px; padding: 16px; margin-bottom: 14px; border: 1px solid var(--border); border-right: 4px solid var(--warning); }
+        .week-msg.latest { border-color: var(--warning); box-shadow: 0 0 0 1px rgba(245,158,11,0.25), 0 8px 24px -10px rgba(245,158,11,0.35); }
+        .week-chip { background: rgba(245,158,11,0.15); color: var(--warning); padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: 700; margin-left: 6px; }
+
         @media (prefers-reduced-motion: reduce) {
             *, *::before, *::after { animation: none !important; transition: none !important; }
         }
@@ -267,13 +327,32 @@
         <div class="logo">مساعد دراسي 🎓<span id="role-badge" class="role-badge" style="display:none;"></span></div>
         <nav>
             <button class="nav-btn active" data-tab="subjects" onclick="switchMainTab('subjects')">المواد الدراسية</button>
-            <button class="nav-btn" data-tab="batch" onclick="switchMainTab('batch')">الدفعة</button>
+            <button class="nav-btn" data-tab="batch" onclick="switchMainTab('batch')">الدفعة<span class="nav-dot" id="batch-dot"></span></button>
+            <button class="nav-btn bell-btn" id="bell-btn" onclick="toggleBell()" title="التنبيهات الصوتية">🔕</button>
             <button class="nav-btn" style="border: none; color: var(--danger);" onclick="logout()">خروج</button>
         </nav>
     </header>
 
     <main id="app-content"></main>
     <div id="toast-container"></div>
+
+    <!-- تنبيه بمحتوى جديد (يظهر أعلى الشاشة) -->
+    <div id="alert-banner" onclick="openAlertTarget()">
+        <div id="alert-icon">🔔</div>
+        <div style="flex: 1; min-width: 0;">
+            <div id="alert-title"></div>
+            <div id="alert-body"></div>
+        </div>
+        <button onclick="event.stopPropagation(); hideAlert()" aria-label="إغلاق">&times;</button>
+    </div>
+
+    <!-- عرض الصورة بالحجم الكامل -->
+    <div id="lightbox" onclick="closeLightbox()">
+        <img id="lightbox-img" alt="">
+        <button aria-label="إغلاق">&times;</button>
+    </div>
+
+    <audio id="notify-sound" src="/notify.mp4" preload="auto"></audio>
 
     <!-- نافذة إضافة ملف / فيديو -->
     <div class="modal-overlay" id="addModal">
@@ -316,12 +395,12 @@
         let activeSubTab = 'files';
 
         const SUBJECTS = [
-            { id: 'oop', name: 'برمجة شيئية', icon: '💻' },
-            { id: 'num_analysis', name: 'التحليل العددي', icon: '📐' },
-            { id: 'computation', name: 'النظرية الاحتسابية', icon: '🧮' },
-            { id: 'python', name: 'لغة بايثون', icon: '🐍' },
-            { id: 'arabic', name: 'اللغة العربية', icon: '📚' },
-            { id: 'ai_algo', name: 'خوارزميات AI', icon: '🤖' }
+            { id: 'oop', name: 'برمجة شيئية', icon: '💻', color: '#3b82f6' },
+            { id: 'num_analysis', name: 'التحليل العددي', icon: '📐', color: '#8b5cf6' },
+            { id: 'computation', name: 'النظرية الاحتسابية', icon: '🧮', color: '#ec4899' },
+            { id: 'python', name: 'لغة بايثون', icon: '🐍', color: '#10b981' },
+            { id: 'arabic', name: 'اللغة العربية', icon: '📚', color: '#f59e0b' },
+            { id: 'ai_algo', name: 'خوارزميات AI', icon: '🤖', color: '#06b6d4' }
         ];
 
         // ---------- أدوات مساعدة ----------
@@ -356,7 +435,7 @@
 
         // إغلاق النوافذ بزر Esc أو بالضغط خارجها
         document.addEventListener('keydown', e => {
-            if (e.key === 'Escape') { closeAddModal(); closeEditMsg(); }
+            if (e.key === 'Escape') { closeAddModal(); closeEditMsg(); closeLightbox(); }
         });
         document.addEventListener('click', e => {
             if (e.target.classList && e.target.classList.contains('modal-overlay')) e.target.style.display = 'none';
@@ -421,10 +500,142 @@
                     history.replaceState({ page: 'main', tab: currentTab }, '', '#' + currentTab);
                 }
                 render();
+                startPolling();
             } else {
                 document.getElementById('main-header').style.display = 'none';
                 renderLogin();
             }
+        }
+
+        // ---------- التنبيهات بالمحتوى الجديد ----------
+        // يتحقق الموقع كل دقيقة من وجود ملف أو تبليغ جديد ما دام مفتوحاً،
+        // ويشغّل صوت التنبيه إذا فعّل الطالب الجرس 🔔
+        const POLL_MS = 60 * 1000;
+        let pollTimer = null;
+        let alertTarget = null;
+        let alertTimer = null;
+
+        const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+        const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
+        const soundOn = () => lsGet('soundOn') === '1';
+
+        function updateBellUI() {
+            const b = document.getElementById('bell-btn');
+            if (!b) return;
+            b.textContent = soundOn() ? '🔔' : '🔕';
+            b.classList.toggle('on', soundOn());
+            b.title = soundOn() ? 'التنبيهات الصوتية مفعّلة (اضغط للإيقاف)' : 'تفعيل التنبيهات الصوتية';
+        }
+
+        function playSound() {
+            const a = document.getElementById('notify-sound');
+            if (!a) return;
+            try {
+                a.currentTime = 0;
+                const p = a.play();
+                if (p && p.catch) p.catch(() => {});
+            } catch (e) {}
+        }
+
+        function toggleBell() {
+            const on = !soundOn();
+            lsSet('soundOn', on ? '1' : '0');
+            updateBellUI();
+            if (on) {
+                playSound(); // تجربة الصوت (وتسمح للتطبيق بتشغيله لاحقاً)
+                showToast('تم تفعيل التنبيهات الصوتية', '🔔');
+                // في المتصفح العادي نطلب أيضاً إذن إشعارات النظام
+                if ('Notification' in window && Notification.permission === 'default') {
+                    try { const r = Notification.requestPermission(); if (r && r.catch) r.catch(() => {}); } catch (e) {}
+                }
+            } else {
+                showToast('تم إيقاف التنبيهات الصوتية', '🔕');
+            }
+        }
+
+        function showAlert(a) {
+            alertTarget = a.target;
+            document.getElementById('alert-icon').textContent = a.icon;
+            document.getElementById('alert-title').textContent = a.title;
+            document.getElementById('alert-body').textContent = a.body;
+            const el = document.getElementById('alert-banner');
+            el.classList.add('show');
+            clearTimeout(alertTimer);
+            alertTimer = setTimeout(hideAlert, 8000);
+        }
+
+        function hideAlert() { document.getElementById('alert-banner').classList.remove('show'); }
+
+        function openAlertTarget() {
+            hideAlert();
+            const t = alertTarget;
+            if (!t) return;
+            if (t.page === 'batch') switchMainTab('batch');
+            else if (t.page === 'subject') { openSubject(t.id); if (t.sub !== 'files') switchSubTab(t.sub); }
+        }
+
+        function systemNotify(a) {
+            if (!('Notification' in window) || Notification.permission !== 'granted' || !document.hidden) return;
+            try { new Notification(a.title, { body: a.body, tag: 'study-assistant' }); } catch (e) {}
+        }
+
+        function markMessagesViewed(id) {
+            lsSet('viewed_msg', id);
+            const dot = document.getElementById('batch-dot');
+            if (dot) dot.style.display = 'none';
+        }
+
+        function updateBatchDot(latestMsgId) {
+            const dot = document.getElementById('batch-dot');
+            if (!dot) return;
+            const viewed = parseInt(lsGet('viewed_msg')) || 0;
+            dot.style.display = (latestMsgId > viewed && currentTab !== 'batch') ? 'block' : 'none';
+        }
+
+        // silent = تحديث المرجع بدون تنبيه (مثلاً بعد أن ينشر الأدمن بنفسه)
+        async function checkForNew(silent = false) {
+            if (!currentUser) return;
+            let d;
+            try { d = await api('/api/updates/latest'); } catch (e) { return; }
+            const lec = d.lecture, msg = d.message;
+            const prevLec = lsGet('notified_lec'), prevMsg = lsGet('notified_msg');
+            const alerts = [];
+
+            if (lec && prevLec !== null && lec.id > Number(prevLec)) {
+                const sub = SUBJECTS.find(s => s.id === lec.subject_id);
+                const isVid = String(lec.title).startsWith('[VIDEO]');
+                alerts.push({
+                    icon: isVid ? '🎬' : '📚',
+                    title: isVid ? 'شرح جديد' + (sub ? ' في ' + sub.name : '') : 'ملف جديد' + (sub ? ' في ' + sub.name : ''),
+                    body: String(lec.title).replace(/^\[(VIDEO|PDF)\]/, ''),
+                    target: sub ? { page: 'subject', id: sub.id, sub: isVid ? 'videos' : 'files' } : null,
+                });
+            }
+            if (msg && prevMsg !== null && msg.id > Number(prevMsg)) {
+                alerts.push({ icon: '📣', title: 'تبليغ جديد للدفعة', body: msg.text || '🖼️ صورة جديدة', target: { page: 'batch' } });
+            }
+
+            lsSet('notified_lec', lec ? lec.id : 0);
+            lsSet('notified_msg', msg ? msg.id : 0);
+            updateBatchDot(msg ? msg.id : 0);
+
+            if (silent || !alerts.length) return;
+            const a = alerts[alerts.length - 1]; // التبليغ أولى من الملف إذا وصل الاثنان معاً
+            showAlert(a);
+            systemNotify(a);
+            if (soundOn()) playSound();
+
+            // تحديث الصفحة الحالية لتظهر المحتويات الجديدة
+            if (currentTab === 'subjects') render();
+            else if (currentTab === 'batch') fetchWeeklyMessages();
+        }
+
+        function startPolling() {
+            updateBellUI();
+            if (pollTimer) return;
+            checkForNew();
+            pollTimer = setInterval(() => { if (!document.hidden) checkForNew(); }, POLL_MS);
+            document.addEventListener('visibilitychange', () => { if (!document.hidden) checkForNew(); });
         }
 
         function renderLogin() {
@@ -511,10 +722,10 @@
 
         function renderSubjects(app) {
             app.innerHTML = `<div class="grid-container">` + SUBJECTS.map(sub => `
-                <div class="card" style="text-align: center; border-top: 4px solid var(--primary); position: relative;">
+                <div class="card subject-card" style="--accent: ${sub.color}; --accent-soft: ${sub.color}29; --accent-glow: ${sub.color}59;">
                     <span id="badge-${sub.id}" class="new-badge">جديد</span>
                     <span id="pend-${sub.id}" style="display: none; position: absolute; top: 10px; left: 10px; background: var(--warning); color: #0f172a; padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: 700;"></span>
-                    <div style="font-size: 45px; margin-bottom: 10px;">${sub.icon}</div>
+                    <div class="subject-icon">${sub.icon}</div>
                     <div class="card-title" style="margin-bottom: 15px;">${sub.name}</div>
                     <div class="sub-count" id="count-${sub.id}">&nbsp;</div>
                     <button class="btn" onclick="openSubject('${sub.id}')">فتح المادة</button>
@@ -581,15 +792,18 @@
                     ${isAdmin() ? `
                         <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;">
                             <textarea id="new-msg-input" class="input-field" rows="4" style="margin: 0; resize: vertical; min-height: 100px;" placeholder="اكتب التوجيه أو الرسالة لهذا الأسبوع..."></textarea>
-                            <div style="display: flex; gap: 10px;">
-                                <input type="url" id="new-msg-img" class="input-field" style="margin: 0; flex: 1;" placeholder="رابط صورة السبورة (اختياري)..." dir="ltr">
-                                <button class="btn btn-success" id="publish-msg-btn" style="width: 120px;" onclick="addWeeklyMessage()">نشر</button>
+                            <div class="uploader">
+                                <input type="file" id="new-msg-files" accept="image/*" multiple hidden onchange="addPendingImages(this.files); this.value='';">
+                                <button class="upload-btn" onclick="document.getElementById('new-msg-files').click()">📷 إضافة صور</button>
+                                <div class="previews" id="msg-previews"></div>
+                                <button class="btn btn-success" id="publish-msg-btn" style="width: 120px; margin-right: auto;" onclick="addWeeklyMessage()">نشر</button>
                             </div>
                         </div>
                     ` : ''}
-                    <div id="messages-container"></div>
+                    <div id="messages-container">${skeleton(2)}</div>
                 </div>
             `;
+            renderPreviews();
             fetchWeeklyMessages();
         }
 
@@ -790,7 +1004,7 @@
             btn.innerText = 'جاري الحفظ...'; btn.disabled = true;
 
             api('/api/lectures/add', 'POST', { subject_id: currentSubjectId, title: finalTitle, file_url: url, type })
-            .then(() => { closeAddModal(); fetchMedia(type === 'pdf' ? 'files' : 'videos'); })
+            .then(() => { closeAddModal(); fetchMedia(type === 'pdf' ? 'files' : 'videos'); checkForNew(true); })
             .catch(() => alert('خطأ في الإضافة'))
             .finally(() => { btn.innerText = 'حفظ ونشر'; btn.disabled = false; });
         }
@@ -918,10 +1132,14 @@
                     container.innerHTML = '<div style="color: var(--text-muted); text-align: center; padding: 20px; border: 1px dashed var(--border); border-radius: 8px;">لا توجد رسائل أسبوعية حتى الآن.</div>';
                     return;
                 }
+                markMessagesViewed(window.weeklyMessages[0].id);
                 container.innerHTML = window.weeklyMessages.map((msg, index) => `
-                    <div class="week-msg">
+                    <div class="week-msg ${index === 0 ? 'latest' : ''}">
                         <div class="week-msg-head">
-                            <div class="week-msg-date">الأسبوع ${window.weeklyMessages.length - index} • ${esc(msg.date)}</div>
+                            <div class="week-msg-date">
+                                <span class="week-chip">${index === 0 ? '🆕 الأحدث' : 'الأسبوع ' + (window.weeklyMessages.length - index)}</span>
+                                ${esc(msg.date)}
+                            </div>
                             ${isAdmin() ? `
                                 <div class="week-msg-actions">
                                     <button onclick="editMessage(${Number(msg.id)})" style="color: var(--primary);">تعديل ✏️</button>
@@ -930,7 +1148,7 @@
                             ` : ''}
                         </div>
                         ${msg.text ? `<div class="week-msg-text">${linkify(msg.text)}</div>` : ''}
-                        ${msg.image_url ? `<img src="${esc(safeUrl(msg.image_url))}" loading="lazy" style="max-width: 100%; border-radius: 8px; border: 1px solid var(--border); margin-top: 5px;" alt="مرفق السبورة">` : ''}
+                        ${galleryHTML(msg)}
                     </div>
                 `).join('');
             }).catch(() => {
@@ -938,25 +1156,86 @@
             });
         }
 
+        // ---------- صور الرسالة الأسبوعية ----------
+        const MAX_IMAGES = 6;
+        let pendingImages = [];
+
+        function galleryHTML(msg) {
+            const srcs = (msg.image_ids || []).map(id => `/api/images/${Number(id)}`);
+            if (msg.image_url && safeUrl(msg.image_url) !== '#') srcs.push(msg.image_url);
+            if (!srcs.length) return '';
+            return `<div class="gallery n${Math.min(srcs.length, 6)}">` + srcs.map(s =>
+                `<img src="${esc(s)}" loading="lazy" alt="صورة مرفقة" onclick="openLightbox(this.src)">`).join('') + '</div>';
+        }
+
+        function openLightbox(src) {
+            document.getElementById('lightbox-img').src = src;
+            document.getElementById('lightbox').classList.add('show');
+        }
+        function closeLightbox() { document.getElementById('lightbox').classList.remove('show'); }
+
+        // تصغير الصورة وضغطها في المتصفح قبل الرفع (أسرع وأوفر للإنترنت)
+        function compressImage(file, maxSide = 1400, quality = 0.72) {
+            return new Promise((resolve, reject) => {
+                const url = URL.createObjectURL(file);
+                const img = new Image();
+                img.onload = () => {
+                    const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+                    const canvas = document.createElement('canvas');
+                    canvas.width = Math.round(img.width * scale);
+                    canvas.height = Math.round(img.height * scale);
+                    const ctx = canvas.getContext('2d');
+                    ctx.fillStyle = '#fff';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    URL.revokeObjectURL(url);
+                    resolve(canvas.toDataURL('image/jpeg', quality));
+                };
+                img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('bad image')); };
+                img.src = url;
+            });
+        }
+
+        async function addPendingImages(files) {
+            const list = Array.from(files || []).filter(f => f.type.startsWith('image/'));
+            for (const f of list) {
+                if (pendingImages.length >= MAX_IMAGES) { showToast(`الحد الأقصى ${MAX_IMAGES} صور`, '⚠️'); break; }
+                try { pendingImages.push(await compressImage(f)); }
+                catch (e) { showToast('تعذر قراءة إحدى الصور', '❌'); }
+            }
+            renderPreviews();
+        }
+
+        function removePendingImage(i) { pendingImages.splice(i, 1); renderPreviews(); }
+
+        function renderPreviews() {
+            const box = document.getElementById('msg-previews');
+            if (!box) return;
+            box.innerHTML = pendingImages.map((src, i) => `
+                <div class="preview"><img src="${src}" alt=""><button onclick="removePendingImage(${i})" title="إزالة">&times;</button></div>
+            `).join('');
+        }
+
         function addWeeklyMessage() {
             const input = document.getElementById('new-msg-input');
-            const imgInput = document.getElementById('new-msg-img');
             const btn = document.getElementById('publish-msg-btn');
             const text = input.value.trim();
-            const image_url = imgInput ? imgInput.value.trim() : '';
 
-            if (!text && !image_url) return showToast('اكتب نصاً أو ضع رابط صورة', '⚠️');
+            if (!text && !pendingImages.length) return showToast('اكتب نصاً أو أضف صورة', '⚠️');
 
             btn.disabled = true;
-            api('/api/messages/add', 'POST', { text, image_url, date: new Date().toLocaleDateString('ar-IQ') })
+            btn.innerText = pendingImages.length ? 'جاري الرفع...' : 'جاري النشر...';
+            api('/api/messages/add', 'POST', { text, images: pendingImages, date: new Date().toLocaleDateString('ar-IQ') })
             .then(() => {
                 input.value = '';
-                if (imgInput) imgInput.value = '';
+                pendingImages = [];
+                renderPreviews();
                 showToast('تم نشر الرسالة');
                 fetchWeeklyMessages();
+                checkForNew(true);
             })
             .catch(() => showToast('تعذر نشر الرسالة', '❌'))
-            .finally(() => { btn.disabled = false; });
+            .finally(() => { btn.disabled = false; btn.innerText = 'نشر'; });
         }
 
         function editMessage(id) {

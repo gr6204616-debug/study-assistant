@@ -1,3 +1,4 @@
+import base64
 import hmac
 import html
 import json
@@ -9,7 +10,7 @@ from pathlib import Path
 
 import psycopg2
 import psycopg2.extras
-from flask import Flask, Response, jsonify, request
+from flask import Flask, Response, jsonify, request, send_file
 
 app = Flask(__name__)
 
@@ -52,11 +53,20 @@ CREATE TABLE IF NOT EXISTS replies (
     text TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+CREATE TABLE IF NOT EXISTS message_images (
+    id SERIAL PRIMARY KEY,
+    message_id INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+    mime TEXT NOT NULL,
+    data BYTEA NOT NULL
+);
 """
 
 _schema_ready = False
 
 MSG_MAX = 10000  # الحد الأقصى لطول الرسالة الأسبوعية
+MAX_IMAGES = 6  # أقصى عدد صور مع الرسالة الواحدة
+MAX_IMAGE_BYTES = 2 * 1024 * 1024  # أقصى حجم للصورة بعد الضغط
+DATA_URL_RE = re.compile(r"^data:(image/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$")
 
 
 def run(sql, params=(), fetch=True):
@@ -149,6 +159,50 @@ def send_telegram_reply(chat_id, message):
         app.logger.error(f"فشل إرسال الرد: {e}")
 
 
+def send_telegram_photos(images):
+    """يرسل صور الرسالة (قائمة من (mime, bytes)) إلى جروب الطلاب كألبوم واحد."""
+    token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    chat_id = os.environ.get("TELEGRAM_GROUP_CHAT_ID")
+    if not token or not chat_id or not images:
+        return
+
+    boundary = "----studyassistant" + os.urandom(8).hex()
+    parts = []
+
+    def field(name, value):
+        parts.append(
+            f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"\r\n\r\n{value}\r\n'.encode()
+        )
+
+    def file(name, mime, data):
+        ext = mime.split("/")[1]
+        parts.append(
+            f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"; filename="{name}.{ext}"\r\n'
+            f"Content-Type: {mime}\r\n\r\n".encode() + data + b"\r\n"
+        )
+
+    field("chat_id", chat_id)
+    if len(images) == 1:
+        method = "sendPhoto"
+        file("photo", *images[0])
+    else:
+        method = "sendMediaGroup"
+        field("media", json.dumps([{"type": "photo", "media": f"attach://p{i}"} for i in range(len(images))]))
+        for i, (mime, data) in enumerate(images):
+            file(f"p{i}", mime, data)
+    payload = b"".join(parts) + f"--{boundary}--\r\n".encode()
+
+    req = urllib.request.Request(
+        f"https://api.telegram.org/bot{token}/{method}",
+        data=payload,
+        headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
+    )
+    try:
+        urllib.request.urlopen(req, timeout=20)
+    except Exception as e:
+        app.logger.error(f"فشل إرسال الصور إلى تيليجرام: {e}")
+
+
 def send_telegram_long(header, text, footer=""):
     """يقسّم الرسالة الطويلة إلى أجزاء (حد تيليجرام 4096) ويهرّب رموز HTML."""
     chunks = [text[i:i + 3000] for i in range(0, len(text), 3000)] or [""]
@@ -165,9 +219,18 @@ def send_telegram_long(header, text, footer=""):
 INDEX_FILE = Path(__file__).resolve().parent.parent / "public" / "index.html"
 
 
+SOUND_FILE = INDEX_FILE.parent / "notify.mp4"
+
+
 @app.get("/")
 def home():
     return Response(INDEX_FILE.read_text(encoding="utf-8"), mimetype="text/html")
+
+
+@app.get("/notify.mp4")
+def notify_sound():
+    """صوت التنبيه (يستخدمه زر الجرس في الموقع)."""
+    return send_file(SOUND_FILE, mimetype="audio/mp4", max_age=7 * 24 * 3600)
 
 
 # ---------- تسجيل الدخول ----------
@@ -193,6 +256,17 @@ def updates_check():
     return jsonify({
         r["subject_id"]: {"max_id": r["max_id"], "files": r["files"], "videos": r["videos"]}
         for r in rows
+    })
+
+
+@app.get("/api/updates/latest")
+def updates_latest():
+    """آخر ملف وآخر تبليغ — يستخدمه الموقع كل دقيقة لتنبيه الطلاب بالجديد."""
+    lec = run("SELECT id, subject_id, title FROM lectures ORDER BY id DESC LIMIT 1")
+    msg = run("SELECT id, LEFT(text, 120) AS text FROM messages ORDER BY id DESC LIMIT 1")
+    return jsonify({
+        "lecture": lec[0] if lec else None,
+        "message": msg[0] if msg else None,
     })
 
 
@@ -390,8 +464,35 @@ def admin_pending():
 # ----------- الرسائل الأسبوعية -----------
 @app.get("/api/messages")
 def messages_list():
-    # SELECT * يجلب رابط الصورة تلقائياً
-    return jsonify(run("SELECT * FROM messages ORDER BY id DESC"))
+    # image_ids: الصور المرفوعة مع الرسالة، و image_url: رابط صورة قديم (إن وجد)
+    return jsonify(run(
+        "SELECT m.*, ARRAY(SELECT i.id FROM message_images i WHERE i.message_id = m.id ORDER BY i.id) AS image_ids "
+        "FROM messages m ORDER BY m.id DESC"
+    ))
+
+
+@app.get("/api/images/<int:img_id>")
+def message_image(img_id):
+    rows = run("SELECT mime, data FROM message_images WHERE id = %s", (img_id,))
+    if not rows:
+        return jsonify({"error": "الصورة غير موجودة"}), 404
+    resp = Response(bytes(rows[0]["data"]), mimetype=rows[0]["mime"])
+    resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+    return resp
+
+
+def parse_images(raw):
+    """يحوّل الصور القادمة كـ data URL إلى (mime, bytes) ويتحقق من النوع والحجم."""
+    images = []
+    for item in (raw or [])[:MAX_IMAGES]:
+        m = DATA_URL_RE.match(str(item))
+        if not m:
+            raise ValueError("صيغة صورة غير مدعومة")
+        data = base64.b64decode(m.group(2))
+        if len(data) > MAX_IMAGE_BYTES:
+            raise ValueError("الصورة كبيرة جداً")
+        images.append((m.group(1), data))
+    return images
 
 
 @app.post("/api/messages/add")
@@ -403,27 +504,48 @@ def messages_add():
     d = body()
     text = str(d.get("text", "")).strip()[:MSG_MAX]
     image_url = str(d.get("image_url", "")).strip()[:2000]
+    if image_url and not image_url.lower().startswith(("http://", "https://")):
+        image_url = ""
+    try:
+        images = parse_images(d.get("images"))
+    except (ValueError, TypeError) as e:
+        return jsonify({"error": str(e)}), 400
 
-    if not text and not image_url:
+    if not text and not image_url and not images:
         return jsonify({"error": "يجب إدخال نص أو صورة"}), 400
 
     when = str(d.get("date") or date.today().isoformat())[:30]
 
-    # fetch=False ضروري: INSERT لا يُرجع نتائج
-    run(
-        "INSERT INTO messages (text, date, image_url) VALUES (%s, %s, %s)",
-        (text, when, image_url),
-        fetch=False,
-    )
+    # الرسالة وصورها تُحفظ معاً في معاملة واحدة
+    conn = psycopg2.connect(DATABASE_URL)
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO messages (text, date, image_url) VALUES (%s, %s, %s) RETURNING id",
+                    (text, when, image_url),
+                )
+                msg_id = cur.fetchone()[0]
+                for mime, data in images:
+                    cur.execute(
+                        "INSERT INTO message_images (message_id, mime, data) VALUES (%s, %s, %s)",
+                        (msg_id, mime, psycopg2.Binary(data)),
+                    )
+    finally:
+        conn.close()
 
     # --- إرسال الإشعار لجروب تيليجرام (يُقسّم تلقائياً إذا كان طويلاً) ---
     try:
         footer = f"\n\n🖼️ <b>صورة مرفقة:</b> {html.escape(image_url)}" if image_url else ""
-        send_telegram_long(
-            f"📣 <b>تبليغ جديد للدفعة ({html.escape(when)})</b>\n\n",
-            text,
-            footer,
-        )
+        if text or footer:
+            send_telegram_long(
+                f"📣 <b>تبليغ جديد للدفعة ({html.escape(when)})</b>\n\n",
+                text,
+                footer,
+            )
+        elif images:
+            send_telegram_notification(f"📣 <b>تبليغ جديد للدفعة ({html.escape(when)})</b>")
+        send_telegram_photos(images)
     except Exception as e:
         app.logger.error(f"Telegram Error: {e}")
 

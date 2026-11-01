@@ -253,6 +253,21 @@
         .push-prompt { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 20px; padding: 14px 16px;
             background: linear-gradient(135deg, rgba(245,158,11,0.12), rgba(245,158,11,0.04)); border: 1px solid rgba(245,158,11,0.35); border-radius: var(--radius); }
         .push-prompt .bell-ico { font-size: 28px; animation: ring 2.4s var(--ease) 1s infinite; }
+        .install-prompt { background: linear-gradient(135deg, rgba(79,140,255,0.16), rgba(45,212,191,0.06)); border-color: rgba(79,140,255,0.4); }
+        .install-prompt .app-ico { width: 46px; height: 46px; border-radius: 14px; box-shadow: 0 8px 20px -8px rgba(79,140,255,0.7); }
+        .install-steps { list-style: none; padding: 0; margin: 4px 0 16px; counter-reset: st; }
+        .install-steps li { counter-increment: st; display: flex; gap: 12px; align-items: flex-start; padding: 10px 0; border-bottom: 1px dashed var(--border); line-height: 1.8; color: var(--text-muted); }
+        .install-steps li:last-child { border-bottom: none; }
+        .install-steps li::before { content: counter(st); flex: none; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            background: var(--primary); color: #fff; font-weight: 700; font-size: 14px; }
+        .install-steps b { color: var(--text-main); }
+        .install-head { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+        .install-head img { width: 60px; height: 60px; border-radius: 18px; }
+        .install-tabs { display: flex; gap: 6px; margin-bottom: 8px; }
+        .install-tabs button { flex: 1; padding: 8px; border-radius: 10px; border: 1px solid var(--border); background: rgba(255,255,255,0.03);
+            color: var(--text-muted); font-family: inherit; font-size: 14px; cursor: pointer; transition: all 0.2s; }
+        .install-tabs button.on { background: var(--primary); border-color: var(--primary); color: #fff; }
+        .login-install { margin-top: 14px; }
 
         /* =========================================================
            صفحة المادة
@@ -651,6 +666,24 @@
         </div>
     </div>
 
+    <!-- نافذة تحميل التطبيق -->
+    <div class="modal-overlay share-overlay" id="installModal">
+        <div class="modal-content share-sheet" style="max-width: 500px;">
+            <div class="modal-header">
+                <span>📲 تحميل التطبيق</span>
+                <button class="close-modal" onclick="closeInstall()">&times;</button>
+            </div>
+            <div class="install-head">
+                <img src="/icons/icon-192.png" alt="">
+                <div>
+                    <div style="font-weight: 700; font-size: 17px;">مساعد دراسي</div>
+                    <div style="color: var(--text-muted); font-size: 13.5px;">تطبيق خفيف • إشعارات فورية • مشاركة من يوتيوب مباشرة</div>
+                </div>
+            </div>
+            <div id="install-body"></div>
+        </div>
+    </div>
+
     <!-- نافذة استقبال المشاركة: فيديو أو رابط مُشارك إلى التطبيق من يوتيوب أو غيره -->
     <div class="modal-overlay share-overlay" id="shareInModal">
         <div class="modal-content share-sheet" style="max-width: 520px;">
@@ -741,7 +774,7 @@
 
         // إغلاق النوافذ بزر Esc أو بالضغط خارجها
         document.addEventListener('keydown', e => {
-            if (e.key === 'Escape') { closeAddModal(); closeEditMsg(); closeLightbox(); closeShare(); closeShareIn(); }
+            if (e.key === 'Escape') { closeAddModal(); closeEditMsg(); closeLightbox(); closeShare(); closeShareIn(); closeInstall(); }
         });
         document.addEventListener('click', e => {
             if (e.target.classList && e.target.classList.contains('modal-overlay')) e.target.style.display = 'none';
@@ -1142,6 +1175,94 @@
         }
 
         // بطاقة تدعو الطالب لتفعيل الإشعارات (تظهر مرة حتى يفعّلها أو يخفيها)
+        // ---------- تحميل التطبيق ----------
+        let deferredInstall = null;   // نافذة التثبيت الجاهزة من كروم (أندرويد/كمبيوتر)
+        let apkLink = null;           // رابط ملف APK إن وُجد على الموقع
+        const isStandalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true
+            || document.referrer.startsWith('android-app://');
+        const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        const isAndroid = () => /android/i.test(navigator.userAgent);
+
+        window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredInstall = e; });
+        window.addEventListener('appinstalled', () => {
+            deferredInstall = null;
+            closeInstall();
+            document.getElementById('install-prompt')?.remove();
+            showToast('🎉 تم تثبيت التطبيق! تجده على الشاشة الرئيسية');
+        });
+        fetch('/api/app-info').then(r => r.json()).then(d => { apkLink = d.apk || null; }).catch(() => {});
+
+        function installPromptHTML() {
+            if (isStandalone() || lsGet('installPromptHidden') === '1') return '';
+            return `
+                <div class="push-prompt install-prompt reveal" id="install-prompt">
+                    <img class="app-ico" src="/icons/icon-192.png" alt="">
+                    <div style="flex: 1; min-width: 0;">
+                        <div style="font-weight: 700;">حمّل التطبيق</div>
+                        <div style="color: var(--text-muted); font-size: 13.5px;">إشعارات فورية، ومشاركة من يوتيوب بضغطة.</div>
+                    </div>
+                    <button class="btn" style="width: auto;" onclick="installApp()">📲 تحميل</button>
+                    <button class="close-modal" title="إخفاء" onclick="lsSet('installPromptHidden','1'); document.getElementById('install-prompt').remove();">&times;</button>
+                </div>`;
+        }
+
+        async function installApp() {
+            if (isStandalone()) { showToast('التطبيق مثبت عندك بالفعل ✅'); return; }
+            if (deferredInstall && !apkLink) {
+                // كروم يعرض نافذة التثبيت الرسمية مباشرة
+                const ev = deferredInstall;
+                ev.prompt();
+                try { if ((await ev.userChoice).outcome === 'accepted') deferredInstall = null; } catch (e) {}
+                return;
+            }
+            openInstall(isIOS() ? 'ios' : isAndroid() ? 'android' : 'pc');
+        }
+
+        async function promptInstall() {
+            const ev = deferredInstall;
+            if (!ev) return;
+            closeInstall();
+            ev.prompt();
+            try { if ((await ev.userChoice).outcome === 'accepted') deferredInstall = null; } catch (e) {}
+        }
+
+        function openInstall(platform) {
+            const inApp = /; wv\)|FBAN|FBAV|Instagram|Telegram/i.test(navigator.userAgent);
+            const notInside = inApp ? ' (وليس من داخل تليكرام أو تطبيق آخر)' : '';
+            const steps = {
+                android: [
+                    'افتح الموقع من متصفح <b>Google Chrome</b>' + notInside,
+                    'اضغط على <b>⋮</b> في أعلى الشاشة',
+                    'اختر <b>«تثبيت التطبيق»</b> أو <b>«إضافة إلى الشاشة الرئيسية»</b> ثم <b>تثبيت</b>',
+                    'ستجد <b>مساعد دراسي</b> بين تطبيقاتك 🎉',
+                ],
+                ios: [
+                    'افتح الموقع من متصفح <b>Safari</b>' + notInside,
+                    'اضغط زر المشاركة <b>⬆️</b> في أسفل الشاشة',
+                    'اختر <b>«إضافة إلى الشاشة الرئيسية»</b> ثم <b>إضافة</b>',
+                    'ستجد <b>مساعد دراسي</b> على شاشتك 🎉',
+                ],
+                pc: [
+                    'افتح الموقع من <b>Chrome</b> أو <b>Edge</b>',
+                    'اضغط أيقونة التثبيت <b>⊕</b> في نهاية شريط العنوان، أو من القائمة <b>⋮</b> اختر <b>«تثبيت مساعد دراسي»</b>',
+                    'يفتح التطبيق بنافذة مستقلة 🎉',
+                ],
+            };
+            const tab = (id, label) => `<button class="${platform === id ? 'on' : ''}" onclick="openInstall('${id}')">${label}</button>`;
+            document.getElementById('install-body').innerHTML = `
+                ${deferredInstall ? `<button class="btn" style="margin-bottom: 10px;" onclick="promptInstall()">📲 تثبيت الآن بضغطة واحدة</button>` : ''}
+                ${apkLink ? `
+                    <a class="btn ${deferredInstall ? 'btn-outline' : ''}" href="${esc(apkLink)}" download style="text-decoration: none; margin-bottom: 6px;">⬇️ تحميل ملف APK للأندرويد</a>
+                    <div style="color: var(--text-muted); font-size: 12.5px; text-align: center; margin-bottom: 14px;">بعد التحميل افتح الملف واسمح بالتثبيت إذا طلب جوالك ذلك.</div>` : ''}
+                ${deferredInstall || apkLink ? `<div class="divider">أو يدوياً</div>` : ''}
+                <div class="install-tabs">${tab('android', '🤖 أندرويد')}${tab('ios', '📱 آيفون')}${tab('pc', '💻 كمبيوتر')}</div>
+                <ol class="install-steps">${steps[platform].map(t => `<li><span>${t}</span></li>`).join('')}</ol>
+                <button class="btn btn-outline" onclick="copyText(SITE, 'تم نسخ رابط الموقع')">📋 نسخ رابط الموقع</button>`;
+            document.getElementById('installModal').style.display = 'flex';
+        }
+
+        function closeInstall() { const m = document.getElementById('installModal'); if (m) m.style.display = 'none'; }
+
         function pushPromptHTML() {
             if (soundOn() || lsGet('pushPromptHidden') === '1') return '';
             if (pushSupported() && Notification.permission === 'denied') return '';
@@ -1180,6 +1301,7 @@
                             <button class="btn btn-outline" onclick="adminLogin()">دخول كأدمن</button>
                         </div>
                     </details>
+                    ${isStandalone() ? '' : `<button class="btn btn-outline login-install" onclick="installApp()">📲 تحميل التطبيق على جوالك</button>`}
                 </div>
             `;
         }
@@ -1271,6 +1393,7 @@
                         <div class="stat"><div class="stat-num" id="stat-videos">0</div><div class="stat-label">شرح فيديو</div></div>
                     </div>
                 </div>
+                ${installPromptHTML()}
                 ${pushPromptHTML()}
                 <div class="section-title">📚 المواد الدراسية</div>
                 <div class="grid-container">` + SUBJECTS.map(sub => `
@@ -1336,6 +1459,7 @@
                         <a href="https://t.me/+W0Dwz5CDcmEwNDNi" target="_blank" rel="noopener" class="btn" style="background: linear-gradient(135deg,#2dd4bf,#14b8a6); color: #042f2e; box-shadow: 0 10px 22px -12px #2dd4bf;">💬 كروب المناقشة</a>
                         <a href="https://t.me/+vv2ot9xsKBE0NmZi" target="_blank" rel="noopener" class="btn" style="background: linear-gradient(135deg,#0ea5e9,#0284c7); box-shadow: 0 10px 22px -12px #0ea5e9;">📣 قناة التبليغات</a>
                         <button class="btn" onclick="shareApp()">📤 شارك المنصة مع زملائك</button>
+                        ${isStandalone() ? '' : `<button class="btn" style="background: linear-gradient(135deg,#8b5cf6,#6d28d9); box-shadow: 0 10px 22px -12px #8b5cf6;" onclick="installApp()">📲 تحميل التطبيق</button>`}
                     </div>
 
                     <div class="emails">

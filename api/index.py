@@ -334,6 +334,34 @@ def notify_sound():
 PUBLIC_DIR = INDEX_FILE.parent
 
 
+APK_FILE = PUBLIC_DIR / "app.apk"
+APK_URL = os.environ.get("APK_URL", "").strip()
+
+
+def apk_link():
+    """رابط ملف APK إن وُجد: ملف public/app.apk أو رابط خارجي من APK_URL."""
+    if APK_FILE.is_file():
+        return "/app.apk"
+    if APK_URL.startswith("https://"):
+        return APK_URL
+    return None
+
+
+@app.get("/api/app-info")
+def app_info():
+    return jsonify({"apk": apk_link()})
+
+
+@app.get("/app.apk")
+def download_apk():
+    if APK_FILE.is_file():
+        return send_file(APK_FILE, mimetype="application/vnd.android.package-archive",
+                         as_attachment=True, download_name="مساعد-دراسي.apk", max_age=3600)
+    if APK_URL.startswith("https://"):
+        return Response(status=302, headers={"Location": APK_URL})
+    return jsonify({"error": "التطبيق غير متوفر بعد"}), 404
+
+
 @app.get("/sw.js")
 def service_worker():
     resp = send_file(PUBLIC_DIR / "sw.js", mimetype="application/javascript", max_age=0)

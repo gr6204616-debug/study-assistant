@@ -295,6 +295,29 @@
             width: 34px; height: 34px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; transition: 0.25s var(--ease); }
         .close-modal:hover { background: rgba(255,255,255,0.1); color: #fff; transform: rotate(90deg); }
 
+        /* ---- نافذة المشاركة ---- */
+        .share-preview { background: rgba(2,6,23,0.4); border: 1px solid var(--border); border-radius: 14px; padding: 12px 14px;
+            margin-bottom: 16px; color: var(--text-main); font-size: 14px; white-space: pre-wrap; word-break: break-word;
+            max-height: 110px; overflow: hidden; -webkit-mask-image: linear-gradient(#000 70%, transparent); mask-image: linear-gradient(#000 70%, transparent); }
+        .share-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
+        .share-opt { position: relative; overflow: hidden; display: flex; flex-direction: column; align-items: center; gap: 6px;
+            padding: 12px 6px; border-radius: 14px; border: 1px solid var(--border); background: rgba(255,255,255,0.03);
+            color: var(--text-main); text-decoration: none; font-size: 12.5px; font-weight: 600; cursor: pointer;
+            transition: transform 0.3s var(--spring), background 0.25s, border-color 0.25s; animation: popIn 0.4s var(--spring) both; }
+        .share-opt:hover { transform: translateY(-3px); background: rgba(255,255,255,0.07); border-color: var(--border-strong); }
+        .share-ico { width: 46px; height: 46px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            color: #fff; box-shadow: 0 8px 18px -8px var(--c); background: var(--c); }
+        .share-ico svg { width: 24px; height: 24px; fill: currentColor; }
+        .share-link { display: flex; gap: 8px; }
+        .share-link .input-field { margin: 0; font-size: 13px; color: var(--text-muted); }
+        @media (max-width: 640px) {
+            /* على الجوال تظهر من الأسفل مثل قائمة التطبيقات */
+            .share-overlay { align-items: flex-end; padding: 0; }
+            .share-sheet { max-width: none; border-radius: 24px 24px 0 0; padding-bottom: calc(22px + env(safe-area-inset-bottom));
+                animation: sheetUp 0.45s var(--ease) both; }
+            @keyframes sheetUp { from { transform: translateY(100%); } }
+        }
+
         /* ---- ملفات وشروحات ---- */
         .toolbar { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;
             background: rgba(79,140,255,0.06); border: 1px dashed rgba(79,140,255,0.45); border-radius: var(--radius-sm); padding: 12px 16px; margin-bottom: 16px; }
@@ -594,6 +617,22 @@
         </div>
     </div>
 
+    <!-- نافذة المشاركة (عندما لا يدعم الجهاز قائمة المشاركة الخاصة به) -->
+    <div class="modal-overlay share-overlay" id="shareModal">
+        <div class="modal-content share-sheet">
+            <div class="modal-header">
+                <span>📤 مشاركة</span>
+                <button class="close-modal" onclick="closeShare()">&times;</button>
+            </div>
+            <div class="share-preview" id="share-preview"></div>
+            <div class="share-grid" id="share-grid"></div>
+            <div class="share-link">
+                <input type="text" id="share-url" class="input-field" readonly dir="ltr" onclick="this.select()">
+                <button class="btn" style="width: auto;" onclick="copyText(document.getElementById('share-url').value, 'تم نسخ الرابط'); closeShare();">نسخ</button>
+            </div>
+        </div>
+    </div>
+
     <!-- نافذة تعديل الرسالة الأسبوعية -->
     <div class="modal-overlay" id="editMsgModal">
         <div class="modal-content" style="max-width: 600px;">
@@ -656,7 +695,7 @@
 
         // إغلاق النوافذ بزر Esc أو بالضغط خارجها
         document.addEventListener('keydown', e => {
-            if (e.key === 'Escape') { closeAddModal(); closeEditMsg(); closeLightbox(); }
+            if (e.key === 'Escape') { closeAddModal(); closeEditMsg(); closeLightbox(); closeShare(); }
         });
         document.addEventListener('click', e => {
             if (e.target.classList && e.target.classList.contains('modal-overlay')) e.target.style.display = 'none';
@@ -1249,6 +1288,7 @@
                         <a href="https://www.youtube.com/@guts4486/videos" target="_blank" rel="noopener" class="btn" style="background: linear-gradient(135deg,#ef4444,#dc2626); box-shadow: 0 10px 22px -12px #ef4444;">▶️ قناة الشروحات</a>
                         <a href="https://t.me/+W0Dwz5CDcmEwNDNi" target="_blank" rel="noopener" class="btn" style="background: linear-gradient(135deg,#2dd4bf,#14b8a6); color: #042f2e; box-shadow: 0 10px 22px -12px #2dd4bf;">💬 كروب المناقشة</a>
                         <a href="https://t.me/+vv2ot9xsKBE0NmZi" target="_blank" rel="noopener" class="btn" style="background: linear-gradient(135deg,#0ea5e9,#0284c7); box-shadow: 0 10px 22px -12px #0ea5e9;">📣 قناة التبليغات</a>
+                        <button class="btn" onclick="shareApp()">📤 شارك المنصة مع زملائك</button>
                     </div>
 
                     <div class="emails">
@@ -1444,6 +1484,7 @@
                         <a class="act-open" style="background: ${kind.color};" href="${esc(safeUrl(item.file_url))}" target="_blank" rel="noopener noreferrer">
                             ${isVid ? '▶️ مشاهدة' : '📖 فتح'}
                         </a>
+                        <button class="act-icon" title="مشاركة" onclick="shareLecture(${id})">📤</button>
                         <button class="act-icon" title="نسخ الرابط" onclick="copyLink(${id})">📋</button>
                         ${isAdmin() ? `
                             <button class="act-icon" title="تعديل العنوان" onclick="editLecture(${id})">✏️</button>
@@ -1452,6 +1493,75 @@
                     </div>
                 </div>
             `;
+        }
+
+        // =========================================================
+        // المشاركة
+        // =========================================================
+        const SITE = location.origin;
+
+        // على الجوال: قائمة المشاركة الخاصة بالهاتف (تلغرام، واتساب، إنستغرام...)
+        // وإن لم تتوفر: نافذة مشاركة خاصة بالموقع
+        function shareContent({ title, text, url }) {
+            if (navigator.share) {
+                navigator.share({ title, text, url }).catch(err => {
+                    if (!err || err.name !== 'AbortError') openShareSheet({ title, text, url });
+                });
+                return;
+            }
+            openShareSheet({ title, text, url });
+        }
+
+        function openShareSheet({ title, text, url }) {
+            const e = encodeURIComponent;
+            const body = text ? `${text}\n${url}` : url;
+            const opts = [
+                { name: 'تلغرام', icon: '✈️', c: '#229ED9', href: `https://t.me/share/url?url=${e(url)}&text=${e(text || title)}` },
+                { name: 'واتساب', icon: '💬', c: '#25D366', href: `https://wa.me/?text=${e(body)}` },
+                { name: 'فيسبوك', icon: 'f', c: '#1877F2', href: `https://www.facebook.com/sharer/sharer.php?u=${e(url)}` },
+                { name: 'إكس', icon: '𝕏', c: '#111827', href: `https://twitter.com/intent/tweet?text=${e(text || title)}&url=${e(url)}` },
+                { name: 'البريد', icon: '✉️', c: '#ea580c', href: `mailto:?subject=${e(title)}&body=${e(body)}` },
+            ];
+            document.getElementById('share-preview').textContent = body;
+            document.getElementById('share-url').value = url;
+            document.getElementById('share-grid').innerHTML = opts.map((o, i) => `
+                <a class="share-opt" style="--c: ${o.c}; animation-delay: ${i * 40}ms;" href="${esc(o.href)}" target="_blank" rel="noopener noreferrer" onclick="setTimeout(closeShare, 300)">
+                    <span class="share-ico" style="font-weight: 700; font-size: 20px;">${o.icon}</span>${o.name}
+                </a>`).join('') + `
+                <button class="share-opt" style="--c: #4f8cff; animation-delay: ${opts.length * 40}ms;" onclick="copyText(${esc(JSON.stringify(body))}, 'تم نسخ النص والرابط'); closeShare();">
+                    <span class="share-ico" style="font-size: 20px;">📋</span>نسخ الكل
+                </button>`;
+            document.getElementById('shareModal').style.display = 'flex';
+        }
+
+        function closeShare() { const m = document.getElementById('shareModal'); if (m) m.style.display = 'none'; }
+
+        function shareLecture(id) {
+            const item = window.lectureMap[id];
+            if (!item) return;
+            const isVid = String(item.title).startsWith('[VIDEO]');
+            const sub = SUBJECTS.find(s => s.id === item.subject_id);
+            const title = item.title.replace(/^\[(VIDEO|PDF)\]/, '');
+            shareContent({
+                title,
+                text: `${isVid ? '🎬' : '📚'} ${title}${sub ? ' — ' + sub.name : ''}\n📲 كل ملفات المادة: ${SITE}/#subject-${item.subject_id}`,
+                url: item.file_url,
+            });
+        }
+
+        function shareMessage(id) {
+            const msg = (window.weeklyMessages || []).find(m => Number(m.id) === Number(id));
+            if (!msg) return;
+            const text = (msg.text || '').length > 600 ? msg.text.slice(0, 600) + '…' : (msg.text || '🖼️ صور التبليغ');
+            shareContent({ title: 'تبليغ للدفعة', text: `📣 تبليغ للدفعة (${msg.date})\n\n${text}`, url: `${SITE}/#batch` });
+        }
+
+        function shareApp() {
+            shareContent({
+                title: 'مساعد دراسي',
+                text: '🎓 منصة دفعة علوم الذكاء الاصطناعي: الملفات والشروحات والأسئلة والتبليغات بمكان واحد',
+                url: SITE,
+            });
         }
 
         function copyLink(id) {
@@ -1632,12 +1742,13 @@
                                 <span class="week-chip">${index === 0 ? '🆕 الأحدث' : 'الأسبوع ' + (window.weeklyMessages.length - index)}</span>
                                 ${esc(msg.date)}
                             </div>
-                            ${isAdmin() ? `
-                                <div class="week-msg-actions">
+                            <div class="week-msg-actions">
+                                <button onclick="shareMessage(${Number(msg.id)})" style="color: #5eead4;">مشاركة 📤</button>
+                                ${isAdmin() ? `
                                     <button onclick="editMessage(${Number(msg.id)})" style="color: var(--primary);">تعديل ✏️</button>
                                     <button onclick="deleteMessage(${Number(msg.id)})" style="color: var(--danger);">حذف 🗑️</button>
-                                </div>
-                            ` : ''}
+                                ` : ''}
+                            </div>
                         </div>
                         ${msg.text ? `<div class="week-msg-text">${linkify(msg.text)}</div>` : ''}
                         ${galleryHTML(msg)}

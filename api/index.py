@@ -369,6 +369,12 @@ def service_worker():
     return resp
 
 
+@app.get("/sound.js")
+def sound_js():
+    """أصوات الواجهة والموسيقى الهادئة (مولّدة بالكود)."""
+    return send_file(PUBLIC_DIR / "sound.js", mimetype="application/javascript", max_age=3600)
+
+
 @app.get("/manifest.webmanifest")
 def manifest():
     return send_file(PUBLIC_DIR / "manifest.webmanifest", mimetype="application/manifest+json", max_age=3600)

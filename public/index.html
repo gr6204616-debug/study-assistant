@@ -120,6 +120,7 @@
         .nav-logout:hover { color: #fb7185; background: rgba(244,63,94,0.08); }
         .bell-btn.on .nav-ico { animation: ring 1.2s var(--ease) 1; }
         .bell-btn.on { color: #fcd34d; }
+        .music-btn.on { color: #c4b5fd; }
         @keyframes ring { 0%,100% { transform: rotate(0); } 15% { transform: rotate(18deg); } 30% { transform: rotate(-14deg); } 45% { transform: rotate(9deg); } 60% { transform: rotate(-5deg); } }
         .nav-dot { display: none; position: absolute; top: -3px; left: -5px; width: 9px; height: 9px; border-radius: 50%;
             background: var(--danger); box-shadow: 0 0 0 2px var(--bg-color); animation: dotPulse 2s infinite; }
@@ -582,6 +583,7 @@
             html { scroll-behavior: auto; }
         }
     </style>
+    <script src="/sound.js"></script>
 </head>
 <body>
     <!-- خلفية متحركة -->
@@ -603,6 +605,9 @@
             </button>
             <button class="nav-btn bell-btn" id="bell-btn" onclick="toggleBell()" title="التنبيهات">
                 <span class="nav-ico">🔕</span><span class="nav-label">التنبيهات</span>
+            </button>
+            <button class="nav-btn music-btn" id="music-btn" onclick="toggleMusic()" title="تشغيل الموسيقى">
+                <span class="nav-ico">🎵</span><span class="nav-label">موسيقى</span>
             </button>
             <button class="nav-btn nav-logout" onclick="logout()">
                 <span class="nav-ico">🚪</span><span class="nav-label">خروج</span>
@@ -2174,6 +2179,7 @@
             }
         }
 
+        if (window.hookSounds) hookSounds();
         init();
     </script>
 </body>

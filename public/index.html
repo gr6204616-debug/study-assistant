@@ -295,6 +295,24 @@
             width: 34px; height: 34px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; transition: 0.25s var(--ease); }
         .close-modal:hover { background: rgba(255,255,255,0.1); color: #fff; transform: rotate(90deg); }
 
+        /* ---- نافذة استقبال المشاركة ---- */
+        .field-label { display: block; color: var(--text-muted); font-size: 13px; font-weight: 600; margin: 4px 0 8px; }
+        .sharein-preview { display: flex; align-items: center; gap: 12px; padding: 10px; margin-bottom: 14px; border-radius: 14px;
+            background: rgba(2,6,23,0.4); border: 1px solid var(--border); min-width: 0; }
+        .sharein-preview img { width: 110px; height: 62px; object-fit: cover; border-radius: 10px; flex-shrink: 0; background: #000; }
+        .sharein-preview .ico { width: 52px; height: 52px; border-radius: 14px; display: flex; align-items: center; justify-content: center;
+            font-size: 26px; background: rgba(79,140,255,0.14); flex-shrink: 0; }
+        .sharein-preview .url { direction: ltr; text-align: left; color: var(--text-muted); font-size: 12.5px; word-break: break-all;
+            display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .subject-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+        .chip-pick { position: relative; overflow: hidden; display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px;
+            border-radius: 999px; border: 1px solid var(--border-strong); background: rgba(255,255,255,0.03); color: var(--text-main);
+            font-size: 13.5px; font-weight: 600; cursor: pointer; transition: 0.25s var(--ease); }
+        .chip-pick:hover { border-color: var(--c, var(--primary)); }
+        .chip-pick.selected { background: var(--c, var(--primary)); border-color: var(--c, var(--primary)); color: #fff;
+            box-shadow: 0 8px 18px -10px var(--c, var(--primary)); transform: translateY(-1px); }
+        #shareInModal .share-sheet { max-height: 92vh; overflow-y: auto; }
+
         /* ---- نافذة المشاركة ---- */
         .share-preview { background: rgba(2,6,23,0.4); border: 1px solid var(--border); border-radius: 14px; padding: 12px 14px;
             margin-bottom: 16px; color: var(--text-main); font-size: 14px; white-space: pre-wrap; word-break: break-word;
@@ -611,7 +629,7 @@
             <input type="text" id="modal-title-input" class="input-field" placeholder="مثال: المحاضرة الأولى...">
 
             <label style="color: var(--text-muted); display: block; margin-bottom: 8px;">الرابط (URL):</label>
-            <input type="url" id="modal-url-input" class="input-field" placeholder="انسخ والصق الرابط هنا..." dir="ltr" onkeydown="if(event.key==='Enter') submitContent()">
+            <input type="url" id="modal-url-input" class="input-field" placeholder="انسخ والصق الرابط هنا..." dir="ltr" onkeydown="if(event.key==='Enter') submitContent()" oninput="autoTitleFromUrl(this.value)">
 
             <button class="btn" id="save-btn" style="margin-top: 15px;" onclick="submitContent()">حفظ ونشر</button>
         </div>
@@ -630,6 +648,34 @@
                 <input type="text" id="share-url" class="input-field" readonly dir="ltr" onclick="this.select()">
                 <button class="btn" style="width: auto;" onclick="copyText(document.getElementById('share-url').value, 'تم نسخ الرابط'); closeShare();">نسخ</button>
             </div>
+        </div>
+    </div>
+
+    <!-- نافذة استقبال المشاركة: فيديو أو رابط مُشارك إلى التطبيق من يوتيوب أو غيره -->
+    <div class="modal-overlay share-overlay" id="shareInModal">
+        <div class="modal-content share-sheet" style="max-width: 520px;">
+            <div class="modal-header">
+                <span id="sharein-heading">📥 مشاركة إلى المنصة</span>
+                <button class="close-modal" onclick="closeShareIn()">&times;</button>
+            </div>
+            <div class="sharein-preview" id="sharein-preview"></div>
+
+            <label class="field-label">العنوان</label>
+            <input type="text" id="sharein-title" class="input-field" maxlength="200" placeholder="عنوان الفيديو أو الملف...">
+
+            <label class="field-label">اختر المادة</label>
+            <div class="subject-chips" id="sharein-subjects"></div>
+
+            <div id="sharein-admin">
+                <label class="field-label">النوع</label>
+                <div class="subject-chips" id="sharein-type"></div>
+            </div>
+            <div id="sharein-student">
+                <label class="field-label">تعليقك (اختياري)</label>
+                <textarea id="sharein-note" class="input-field" rows="2" maxlength="500" placeholder="مثلاً: شرح ممتاز للمحاضرة الثالثة 👌"></textarea>
+            </div>
+
+            <button class="btn" id="sharein-btn" onclick="submitShareIn()">إضافة</button>
         </div>
     </div>
 
@@ -695,7 +741,7 @@
 
         // إغلاق النوافذ بزر Esc أو بالضغط خارجها
         document.addEventListener('keydown', e => {
-            if (e.key === 'Escape') { closeAddModal(); closeEditMsg(); closeLightbox(); closeShare(); }
+            if (e.key === 'Escape') { closeAddModal(); closeEditMsg(); closeLightbox(); closeShare(); closeShareIn(); }
         });
         document.addEventListener('click', e => {
             if (e.target.classList && e.target.classList.contains('modal-overlay')) e.target.style.display = 'none';
@@ -889,6 +935,7 @@
                 // فتح نفس الصفحة بعد التحديث (مثلاً #subject-python أو #batch)
                 goToHash(location.hash, false);
                 startPolling();
+                processPendingShare(); // فيديو أو رابط شاركه الطالب إلى التطبيق
             } else {
                 document.getElementById('main-header').style.display = 'none';
                 renderLogin();
@@ -959,7 +1006,7 @@
             const t = alertTarget;
             if (!t) return;
             if (t.page === 'batch') switchMainTab('batch');
-            else if (t.page === 'subject') { openSubject(t.id); if (t.sub !== 'files') switchSubTab(t.sub); }
+            else if (t.page === 'subject') openSubject(t.id, t.sub || 'files');
         }
 
         function systemNotify(a) {
@@ -1321,10 +1368,10 @@
             fetchWeeklyMessages();
         }
 
-        function openSubject(id) {
+        function openSubject(id, tab = 'files') {
             currentSubjectId = id;
             currentTab = 'subject_details';
-            activeSubTab = 'files';
+            activeSubTab = tab;
 
             const info = window.latestUpdates && window.latestUpdates[id];
             if (info && info.max_id) localStorage.setItem(`max_id_${id}`, info.max_id);
@@ -1398,8 +1445,11 @@
             container.innerHTML = skeleton(3);
             const isVid = mediaType === 'videos';
 
+            const forSubject = currentSubjectId;
             api(`/api/lectures/${encodeURIComponent(currentSubjectId)}`)
             .then(data => {
+                // تجاهل الرد إذا انتقل الطالب لتبويب أو مادة أخرى قبل وصوله
+                if (activeSubTab !== mediaType || currentSubjectId !== forSubject || !document.body.contains(container)) return;
                 const isVideoTitle = t => String(t).startsWith('[VIDEO]');
                 const list = (data || []).filter(item => isVid ? isVideoTitle(item.title) : !isVideoTitle(item.title));
                 list.forEach(item => { window.lectureMap[item.id] = item; });
@@ -1535,6 +1585,126 @@
         }
 
         function closeShare() { const m = document.getElementById('shareModal'); if (m) m.style.display = 'none'; }
+
+        // =========================================================
+        // استقبال المشاركة: فيديو من يوتيوب (أو أي رابط) يُشارك إلى التطبيق
+        // =========================================================
+        // نلتقط ما شاركه الطالب قبل أي شيء آخر، ونحفظه حتى بعد تسجيل الدخول
+        (function captureIncomingShare() {
+            if (location.pathname !== '/share') return;
+            const p = new URLSearchParams(location.search);
+            const data = { title: p.get('title') || '', text: p.get('text') || '', url: p.get('url') || '' };
+            try { sessionStorage.setItem('pendingShare', JSON.stringify(data)); } catch (e) { window._pendingShare = data; }
+            history.replaceState(null, '', '/');
+        })();
+
+        function processPendingShare() {
+            let data = window._pendingShare || null;
+            try { const s = sessionStorage.getItem('pendingShare'); if (s) data = JSON.parse(s); sessionStorage.removeItem('pendingShare'); } catch (e) {}
+            window._pendingShare = null;
+            if (data) setTimeout(() => openShareIn(data), 350);
+        }
+
+        let shareIn = null;
+
+        function openShareIn({ title, text, url }) {
+            // يوتيوب يضع الرابط غالباً داخل النص وليس في حقل الرابط
+            const all = [url, text, title].join(' ');
+            const found = (all.match(/https?:\/\/[^\s"'<>]+/) || [''])[0];
+            if (!found) return showToast('لم يتم العثور على رابط في ما شاركته', '⚠️');
+
+            // استخراج العنوان: 'Watch "العنوان" on YouTube' أو نص عادي
+            let guess = (String(title).match(/["“«](.+?)["”»]/) || [])[1] || '';
+            if (!guess) guess = [title, text].map(s => String(s || '').replace(found, '').trim()).find(s => s && !/^https?:/i.test(s)) || '';
+            guess = guess.replace(/\s+/g, ' ').slice(0, 200);
+
+            const yt = youtubeId(found);
+            shareIn = {
+                url: found,
+                subject: currentTab === 'subject_details' ? currentSubjectId : null,
+                type: yt ? 'video' : 'pdf',
+            };
+
+            document.getElementById('sharein-preview').innerHTML = `
+                ${yt ? `<img src="https://i.ytimg.com/vi/${yt}/mqdefault.jpg" alt="">` : `<div class="ico">🔗</div>`}
+                <div style="min-width: 0;"><div style="font-weight: 700; font-size: 14px;">${yt ? '▶️ فيديو يوتيوب' : '🔗 رابط'}</div>
+                <div class="url">${esc(found)}</div></div>`;
+            const titleInput = document.getElementById('sharein-title');
+            titleInput.value = guess;
+            if (!guess && yt) fetchLinkTitle(found).then(t => { if (t && !titleInput.value) titleInput.value = t; });
+
+            const admin = isAdmin();
+            document.getElementById('sharein-heading').textContent = admin ? '📥 إضافة إلى المنصة' : '📥 شارك مع الدفعة';
+            document.getElementById('sharein-admin').style.display = admin ? 'block' : 'none';
+            document.getElementById('sharein-student').style.display = admin ? 'none' : 'block';
+            document.getElementById('sharein-note').value = '';
+            document.getElementById('sharein-btn').textContent = admin ? '➕ إضافة للمادة وإرسال إشعار' : '💬 نشر في نقاش المادة';
+            renderShareInChips();
+            document.getElementById('shareInModal').style.display = 'flex';
+        }
+
+        function renderShareInChips() {
+            document.getElementById('sharein-subjects').innerHTML = SUBJECTS.map(s => `
+                <button class="chip-pick ${shareIn.subject === s.id ? 'selected' : ''}" style="--c: ${s.color};"
+                        onclick="shareIn.subject='${s.id}'; renderShareInChips();">${s.icon} ${s.name}</button>`).join('');
+            document.getElementById('sharein-type').innerHTML = [['video', '▶️ شرح فيديو'], ['pdf', '📖 ملف']].map(([v, l]) => `
+                <button class="chip-pick ${shareIn.type === v ? 'selected' : ''}" onclick="shareIn.type='${v}'; renderShareInChips();">${l}</button>`).join('');
+        }
+
+        // عند لصق رابط يوتيوب في نافذة الإضافة يُكتب عنوان الفيديو تلقائياً إن كان حقل العنوان فارغاً
+        let autoTitleTimer = null;
+        function autoTitleFromUrl(url) {
+            clearTimeout(autoTitleTimer);
+            if (!youtubeId(url)) return;
+            autoTitleTimer = setTimeout(async () => {
+                const input = document.getElementById('modal-title-input');
+                if (input.value.trim()) return;
+                input.placeholder = '⏳ جاري جلب عنوان الفيديو...';
+                const t = await fetchLinkTitle(url.trim());
+                input.placeholder = 'مثال: المحاضرة الأولى...';
+                if (t && !input.value.trim()) { input.value = t; showToast('تم جلب عنوان الفيديو تلقائياً', '✨'); }
+            }, 400);
+        }
+
+        function closeShareIn() { const m = document.getElementById('shareInModal'); if (m) m.style.display = 'none'; }
+
+        async function fetchLinkTitle(url) {
+            try { return (await api('/api/link-title?url=' + encodeURIComponent(url))).title; } catch (e) { return null; }
+        }
+
+        async function submitShareIn() {
+            if (!shareIn) return;
+            const title = document.getElementById('sharein-title').value.trim();
+            if (!shareIn.subject) return showToast('اختر المادة أولاً', '⚠️');
+            if (isAdmin() && !title) return showToast('اكتب عنواناً', '⚠️');
+            const btn = document.getElementById('sharein-btn');
+            btn.disabled = true;
+            const subject = shareIn.subject;
+            try {
+                if (isAdmin()) {
+                    const type = shareIn.type;
+                    await api('/api/lectures/add', 'POST', {
+                        subject_id: subject, title: (type === 'video' ? '[VIDEO]' : '[PDF]') + title, file_url: shareIn.url, type,
+                    });
+                    showToast('تمت الإضافة وأُرسل إشعار للطلاب', '🎉');
+                    checkForNew(true);
+                    closeShareIn();
+                    openSubject(subject, type === 'video' ? 'videos' : 'files');
+                } else {
+                    const note = document.getElementById('sharein-note').value.trim();
+                    const q = `${note ? note + '\n\n' : ''}🎬 ${title || 'رابط مفيد'}\n${shareIn.url}`.slice(0, 1000);
+                    await api('/api/questions/add', 'POST', { subject_id: subject, q_text: q, asker: currentUser.name });
+                    showToast('تمت المشاركة في نقاش المادة', '🎉');
+                    closeShareIn();
+                    openSubject(subject, 'qa');
+                }
+                shareIn = null;
+            } catch (e) {
+                showToast('تعذر الإضافة، حاول مجدداً', '❌');
+            } finally {
+                btn.disabled = false;
+            }
+        }
 
         function shareLecture(id) {
             const item = window.lectureMap[id];

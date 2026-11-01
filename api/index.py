@@ -4,6 +4,7 @@ import html
 import json
 import os
 import re
+import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date
@@ -293,6 +294,34 @@ SOUND_FILE = INDEX_FILE.parent / "notify.mp4"
 @app.get("/")
 def home():
     return Response(INDEX_FILE.read_text(encoding="utf-8"), mimetype="text/html")
+
+
+@app.get("/share")
+def share_target():
+    """صفحة استقبال المشاركة: عند مشاركة فيديو من يوتيوب إلى التطبيق يفتح هنا."""
+    return home()
+
+
+YOUTUBE_HOSTS = {"youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com", "youtu.be"}
+
+
+@app.get("/api/link-title")
+def link_title():
+    """يجلب عنوان فيديو يوتيوب تلقائياً (يوتيوب فقط، كي لا يُستعمل الخادم لجلب مواقع أخرى)."""
+    url = str(request.args.get("url", "")).strip()[:500]
+    try:
+        host = urllib.parse.urlparse(url).hostname or ""
+    except ValueError:
+        host = ""
+    if not url.lower().startswith(("http://", "https://")) or host.lower() not in YOUTUBE_HOSTS:
+        return jsonify({"title": None})
+    oembed = "https://www.youtube.com/oembed?format=json&url=" + urllib.parse.quote(url, safe="")
+    try:
+        with urllib.request.urlopen(oembed, timeout=5) as r:
+            data = json.loads(r.read().decode("utf-8"))
+        return jsonify({"title": str(data.get("title") or "")[:300] or None})
+    except Exception:
+        return jsonify({"title": None})
 
 
 @app.get("/notify.mp4")

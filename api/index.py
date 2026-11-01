@@ -5,6 +5,7 @@ import json
 import os
 import re
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 from pathlib import Path
 
@@ -12,7 +13,27 @@ import psycopg2
 import psycopg2.extras
 from flask import Flask, Response, jsonify, request, send_file
 
+try:
+    from pywebpush import WebPushException, webpush
+except ImportError:  # الموقع يعمل حتى لو لم تُثبّت المكتبة، فقط بدون إشعارات
+    webpush = None
+
 app = Flask(__name__)
+
+# مفاتيح إشعارات الجوال (Web Push) — تُضبط في متغيرات Vercel
+VAPID_PUBLIC_KEY = os.environ.get("VAPID_PUBLIC_KEY", "")
+VAPID_PRIVATE_KEY = os.environ.get("VAPID_PRIVATE_KEY", "")
+VAPID_SUBJECT = os.environ.get("VAPID_SUBJECT", "mailto:admin@example.com")
+
+# أسماء المواد لنص الإشعار
+SUBJECT_NAMES = {
+    "oop": "برمجة شيئية",
+    "num_analysis": "التحليل العددي",
+    "computation": "النظرية الاحتسابية",
+    "python": "لغة بايثون",
+    "arabic": "اللغة العربية",
+    "ai_algo": "خوارزميات AI",
+}
 
 DATABASE_URL = os.environ.get("DATABASE_URL") or os.environ.get("POSTGRES_URL")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
@@ -58,6 +79,13 @@ CREATE TABLE IF NOT EXISTS message_images (
     message_id INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
     mime TEXT NOT NULL,
     data BYTEA NOT NULL
+);
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+    id SERIAL PRIMARY KEY,
+    endpoint TEXT UNIQUE NOT NULL,
+    p256dh TEXT NOT NULL,
+    auth TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 """
 
@@ -203,6 +231,46 @@ def send_telegram_photos(images):
         app.logger.error(f"فشل إرسال الصور إلى تيليجرام: {e}")
 
 
+# ---------- إشعارات الجوال (Web Push) ----------
+def push_enabled():
+    return bool(webpush and VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY)
+
+
+def send_push_all(title, body, url="/", tag="study"):
+    """يرسل إشعاراً ينبثق على جوالات كل الطلاب المشتركين، ويحذف الاشتراكات المنتهية."""
+    if not push_enabled():
+        return
+    subs = run("SELECT id, endpoint, p256dh, auth FROM push_subscriptions")
+    if not subs:
+        return
+    payload = json.dumps({"title": title, "body": body, "url": url, "tag": tag}, ensure_ascii=False)
+    dead = []
+
+    def send_one(s):
+        try:
+            webpush(
+                subscription_info={"endpoint": s["endpoint"], "keys": {"p256dh": s["p256dh"], "auth": s["auth"]}},
+                data=payload,
+                vapid_private_key=VAPID_PRIVATE_KEY,
+                vapid_claims={"sub": VAPID_SUBJECT},  # قاموس جديد لكل طلب (المكتبة تعدّله)
+                ttl=24 * 3600,
+                timeout=10,
+            )
+        except WebPushException as e:
+            # 404/410 = الطالب حذف التطبيق أو ألغى الإشعارات
+            if e.response is not None and e.response.status_code in (404, 410):
+                dead.append(s["id"])
+            else:
+                app.logger.error(f"فشل إرسال إشعار: {e}")
+        except Exception as e:
+            app.logger.error(f"فشل إرسال إشعار: {e}")
+
+    with ThreadPoolExecutor(max_workers=16) as pool:
+        list(pool.map(send_one, subs))
+    if dead:
+        run("DELETE FROM push_subscriptions WHERE id = ANY(%s)", (dead,), fetch=False)
+
+
 def send_telegram_long(header, text, footer=""):
     """يقسّم الرسالة الطويلة إلى أجزاء (حد تيليجرام 4096) ويهرّب رموز HTML."""
     chunks = [text[i:i + 3000] for i in range(0, len(text), 3000)] or [""]
@@ -231,6 +299,75 @@ def home():
 def notify_sound():
     """صوت التنبيه (يستخدمه زر الجرس في الموقع)."""
     return send_file(SOUND_FILE, mimetype="audio/mp4", max_age=7 * 24 * 3600)
+
+
+# ---------- ملفات التطبيق (PWA) ----------
+PUBLIC_DIR = INDEX_FILE.parent
+
+
+@app.get("/sw.js")
+def service_worker():
+    resp = send_file(PUBLIC_DIR / "sw.js", mimetype="application/javascript", max_age=0)
+    resp.headers["Cache-Control"] = "no-cache"
+    return resp
+
+
+@app.get("/manifest.webmanifest")
+def manifest():
+    return send_file(PUBLIC_DIR / "manifest.webmanifest", mimetype="application/manifest+json", max_age=3600)
+
+
+@app.get("/icons/<name>")
+def icons(name):
+    if not re.fullmatch(r"[a-z0-9-]+\.png", name) or not (PUBLIC_DIR / "icons" / name).is_file():
+        return jsonify({"error": "غير موجود"}), 404
+    return send_file(PUBLIC_DIR / "icons" / name, mimetype="image/png", max_age=7 * 24 * 3600)
+
+
+@app.get("/.well-known/assetlinks.json")
+def asset_links():
+    """يربط تطبيق الأندرويد (من PWABuilder) بالموقع كي يختفي شريط العنوان.
+    يُضبط عبر متغيري ANDROID_PACKAGE و ANDROID_SHA256 في Vercel."""
+    package = os.environ.get("ANDROID_PACKAGE", "").strip()
+    prints = [p.strip() for p in os.environ.get("ANDROID_SHA256", "").split(",") if p.strip()]
+    if not package or not prints:
+        return jsonify([])
+    return jsonify([{
+        "relation": ["delegate_permission/common.handle_all_urls"],
+        "target": {"namespace": "android_app", "package_name": package, "sha256_cert_fingerprints": prints},
+    }])
+
+
+# ---------- اشتراكات الإشعارات ----------
+@app.get("/api/push/key")
+def push_key():
+    return jsonify({"key": VAPID_PUBLIC_KEY if push_enabled() else None})
+
+
+@app.post("/api/push/subscribe")
+def push_subscribe():
+    d = body()
+    endpoint = str(d.get("endpoint", "")).strip()
+    keys = d.get("keys") or {}
+    p256dh = str(keys.get("p256dh", "")).strip()
+    auth = str(keys.get("auth", "")).strip()
+    if not (endpoint.startswith("https://") and len(endpoint) < 1000 and 0 < len(p256dh) < 200 and 0 < len(auth) < 100):
+        return jsonify({"error": "اشتراك غير صالح"}), 400
+    run(
+        "INSERT INTO push_subscriptions (endpoint, p256dh, auth) VALUES (%s, %s, %s) "
+        "ON CONFLICT (endpoint) DO UPDATE SET p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth",
+        (endpoint, p256dh, auth),
+        fetch=False,
+    )
+    return jsonify({"ok": True})
+
+
+@app.post("/api/push/unsubscribe")
+def push_unsubscribe():
+    endpoint = str(body().get("endpoint", "")).strip()
+    if endpoint:
+        run("DELETE FROM push_subscriptions WHERE endpoint = %s", (endpoint,), fetch=False)
+    return jsonify({"ok": True})
 
 
 # ---------- تسجيل الدخول ----------
@@ -309,6 +446,19 @@ def lectures_add():
         send_telegram_notification(msg)
     except Exception:
         pass
+
+    # --- إشعار ينبثق على جوالات الطلاب ---
+    try:
+        is_video = title.startswith("[VIDEO]")
+        name = SUBJECT_NAMES.get(subject, subject)
+        send_push_all(
+            f"{'🎬 شرح جديد' if is_video else '📚 ملف جديد'} - {name}",
+            re.sub(r"^\[(VIDEO|PDF)\]", "", title),
+            f"/#subject-{subject}",
+            tag=f"lec-{subject}",
+        )
+    except Exception as e:
+        app.logger.error(f"Push Error: {e}")
 
     return jsonify(row)
 
@@ -548,6 +698,13 @@ def messages_add():
         send_telegram_photos(images)
     except Exception as e:
         app.logger.error(f"Telegram Error: {e}")
+
+    # --- إشعار ينبثق على جوالات الطلاب ---
+    try:
+        preview = " ".join(text.split())[:150] or "🖼️ صور جديدة"
+        send_push_all("📣 تبليغ جديد للدفعة", preview, "/#batch", tag="batch")
+    except Exception as e:
+        app.logger.error(f"Push Error: {e}")
 
     return jsonify({"success": True})
 

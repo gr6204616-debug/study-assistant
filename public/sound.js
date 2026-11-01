@@ -31,6 +31,7 @@
             reverb.connect(wet); wet.connect(master);
             sfxBus = ctx.createGain(); sfxBus.gain.value = 0.5; sfxBus.connect(master);
             musicBus = ctx.createGain(); musicBus.gain.value = 0; musicBus.connect(master);
+            loadTap();
         }
         if (ctx.state === 'suspended' && !document.hidden) ctx.resume().catch(() => {});
         return ctx;
@@ -73,6 +74,25 @@
     }
 
     // ---------- أصوات الواجهة ----------
+    // النغمة الأساسية: ملف tap.wav (محرَّر: بدون طنين، بداية حادة ونهاية ناعمة)
+    let tapBuf = null, tapLoading = false;
+    const TAP = {
+        in:    { rate: 1.0,  vol: 1.0 },  // ضغطة عادية / دخول
+        open:  { rate: 1.0,  vol: 0.9 },  // فتح نافذة
+        tab:   { rate: 1.12, vol: 0.6 },  // تبديل تبويب: أخف وأعلى قليلاً
+        out:   { rate: 0.84, vol: 0.8 },  // رجوع / خروج: أعمق
+        close: { rate: 0.9,  vol: 0.75 }, // إغلاق نافذة
+    };
+    // نحمّل الملف مبكراً، ونفك ترميزه عند أول لمسة
+    const tapBytes = fetch('/tap.wav?v=1').then(r => r.ok ? r.arrayBuffer() : Promise.reject()).catch(() => null);
+    function loadTap() {
+        if (tapBuf || tapLoading) return;
+        tapLoading = true;
+        tapBytes.then(ab => ab ? new Promise((ok, no) => ctx.decodeAudioData(ab.slice(0), ok, no)) : Promise.reject())
+            .then(b => { tapBuf = b; })
+            .catch(() => { tapLoading = false; });
+    }
+
     let lastSfx = 0;
     function sfx(kind) {
         if (get('sfxOff') === '1' || !ensure()) return;
@@ -80,6 +100,15 @@
         if (now - lastSfx < 70) return; // منع تكرار الصوت عند الضغط المتتالي
         lastSfx = now;
         const t = ctx.currentTime + 0.01;
+        if (tapBuf) { // النغمة المحررة: نفس الصوت بطبقات مختلفة حسب نوع الضغطة
+            const v = TAP[kind] || TAP.in;
+            const s = ctx.createBufferSource(); s.buffer = tapBuf;
+            s.playbackRate.value = v.rate * (1 + (Math.random() - 0.5) * 0.03); // تنويع خفيف حتى لا يملّ
+            const g = ctx.createGain(); g.gain.value = v.vol;
+            s.connect(g); send(g, 1, 0.12);
+            s.start(t);
+            return;
+        }
         if (kind === 'in') {          // دخول: نغمتان صاعدتان ناعمتان
             whoosh(t, 0.22, 900, 3200, 0.05);
             tone(784, t, 0.32, { vol: 0.12 });
@@ -223,37 +252,30 @@
     });
 
     // ---------- ربط الأصوات بالتنقل والنوافذ ----------
-    const shown = id => { const m = document.getElementById(id); return !!m && m.style.display === 'flex'; };
-
-    function wrap(name, kind, guard) {
-        const f = window[name];
-        if (typeof f !== 'function') return;
-        window[name] = function (...args) {
-            const k = typeof kind === 'function' ? kind(...args) : kind;
-            if (k && (!guard || guard(...args))) sfx(k);
-            return f.apply(this, args);
-        };
+    // نوع الصوت حسب الشيء المضغوط
+    const CLICKABLE = 'button, a[href], summary, .subject-card, .media-item, .gallery img, [onclick], [role="button"]';
+    function kindFor(el) {
+        if (el.closest('.close-modal, .nav-logout, #lightbox')) return 'close';
+        if (el.closest('.nav-btn, .sub-tab-btn, .install-tabs button, .chip-pick')) return 'tab';
+        if (el.closest('.modal-overlay') && el.matches('.modal-overlay')) return 'close';
+        return 'in';
     }
 
     function hookUI() {
-        wrap('openSubject', 'in');
-        wrap('switchMainTab', 'tab', tab => document.querySelector('.nav-btn.active')?.dataset.tab !== tab);
-        wrap('switchSubTab', 'tab');
-        wrap('studentLogin', 'in');
-        wrap('logout', 'out');
-        wrap('openInstall', () => shown('installModal') ? 'tab' : 'open');
-        wrap('openShareSheet', 'open');
-        wrap('openShareIn', 'open');
-        wrap('openAddModal', 'open');
-        wrap('openLightbox', 'open');
-        wrap('closeInstall', 'close', () => shown('installModal'));
-        wrap('closeShare', 'close', () => shown('shareModal'));
-        wrap('closeShareIn', 'close', () => shown('shareInModal'));
-        wrap('closeAddModal', 'close', () => shown('addModal'));
-        wrap('closeEditMsg', 'close', () => shown('editMsgModal'));
-        wrap('closeLightbox', 'close', () => document.getElementById('lightbox')?.classList.contains('show'));
+        // تجهيز الصوت من لحظة اللمس حتى يكون جاهزاً عند الضغطة نفسها
+        addEventListener('pointerdown', () => ensure(), { capture: true, passive: true });
+        // أي ضغطة على زر أو رابط أو بطاقة تشغّل النغمة
+        document.addEventListener('click', e => {
+            const el = e.target.closest && e.target.closest(CLICKABLE);
+            if (!el || el.disabled || el.matches('input, textarea, select')) return;
+            sfx(kindFor(el));
+        }, true);
         // زر الرجوع في الهاتف أو المتصفح
         addEventListener('popstate', () => { if (get('batchUser')) sfx('out'); });
+        // زر Esc يغلق النوافذ المفتوحة
+        addEventListener('keydown', e => {
+            if (e.key === 'Escape' && (document.querySelector('.modal-overlay[style*="flex"]') || document.querySelector('#lightbox.show'))) sfx('close');
+        }, true);
         updateMusicBtn();
         armAutostart();
     }

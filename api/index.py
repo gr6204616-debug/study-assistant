@@ -369,6 +369,12 @@ def service_worker():
     return resp
 
 
+@app.get("/tap.wav")
+def tap_sound():
+    """نغمة الضغط (محرَّرة من صوت الأدمن)."""
+    return send_file(PUBLIC_DIR / "tap.wav", mimetype="audio/wav", max_age=7 * 24 * 3600)
+
+
 @app.get("/sound.js")
 def sound_js():
     """أصوات الواجهة والموسيقى الهادئة (مولّدة بالكود)."""

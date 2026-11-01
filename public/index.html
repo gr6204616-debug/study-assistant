@@ -121,6 +121,20 @@
         .bell-btn.on .nav-ico { animation: ring 1.2s var(--ease) 1; }
         .bell-btn.on { color: #fcd34d; }
         .music-btn.on { color: #c4b5fd; }
+        #sound-menu { position: fixed; z-index: 400; width: 270px; padding: 8px; border-radius: 18px;
+            background: rgba(15,22,42,0.97); border: 1px solid var(--border); box-shadow: 0 22px 50px -15px rgba(0,0,0,0.75);
+            opacity: 0; transform: translateY(6px) scale(0.97); pointer-events: none; transition: opacity 0.2s, transform 0.25s var(--ease); }
+        #sound-menu.show { opacity: 1; transform: none; pointer-events: auto; }
+        .snd-row { display: flex; align-items: center; gap: 12px; padding: 11px 12px; border-radius: 12px; cursor: pointer; transition: background 0.2s; }
+        .snd-row:hover { background: rgba(255,255,255,0.05); }
+        .snd-row span { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+        .snd-row small { color: var(--text-muted); font-size: 12px; }
+        .snd-row input { position: absolute; opacity: 0; pointer-events: none; }
+        .sw { flex: none; position: relative; width: 44px; height: 25px; border-radius: 999px; background: rgba(255,255,255,0.14); transition: background 0.25s; }
+        .sw::after { content: ''; position: absolute; top: 3px; right: 3px; width: 19px; height: 19px; border-radius: 50%; background: #fff;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.35); transition: transform 0.25s var(--ease); }
+        .snd-row input:checked + .sw { background: var(--primary); }
+        .snd-row input:checked + .sw::after { transform: translateX(-19px); }
         @keyframes ring { 0%,100% { transform: rotate(0); } 15% { transform: rotate(18deg); } 30% { transform: rotate(-14deg); } 45% { transform: rotate(9deg); } 60% { transform: rotate(-5deg); } }
         .nav-dot { display: none; position: absolute; top: -3px; left: -5px; width: 9px; height: 9px; border-radius: 50%;
             background: var(--danger); box-shadow: 0 0 0 2px var(--bg-color); animation: dotPulse 2s infinite; }
@@ -583,7 +597,7 @@
             html { scroll-behavior: auto; }
         }
     </style>
-    <script src="/sound.js?v=3"></script>
+    <script src="/sound.js?v=4"></script>
 </head>
 <body>
     <!-- خلفية متحركة -->
@@ -606,14 +620,26 @@
             <button class="nav-btn bell-btn" id="bell-btn" onclick="toggleBell()" title="التنبيهات">
                 <span class="nav-ico">🔕</span><span class="nav-label">التنبيهات</span>
             </button>
-            <button class="nav-btn music-btn" id="music-btn" onclick="toggleMusic()" title="تشغيل الموسيقى">
-                <span class="nav-ico">🎵</span><span class="nav-label">موسيقى</span>
+            <button class="nav-btn music-btn" id="music-btn" onclick="toggleSoundMenu()" title="الأصوات">
+                <span class="nav-ico">🔊</span><span class="nav-label">الأصوات</span>
             </button>
             <button class="nav-btn nav-logout" onclick="logout()">
                 <span class="nav-ico">🚪</span><span class="nav-label">خروج</span>
             </button>
         </nav>
     </header>
+
+    <!-- قائمة الأصوات: كل طالب يختار -->
+    <div id="sound-menu" role="dialog" aria-label="الأصوات">
+        <label class="snd-row">
+            <span><b>👆 صوت الضغط</b><small>نغمة عند الضغط على الأزرار</small></span>
+            <input type="checkbox" id="sw-sfx" onchange="toggleSfx(this.checked)"><i class="sw"></i>
+        </label>
+        <label class="snd-row">
+            <span><b>🎶 الموسيقى</b><small>موسيقى هادئة في الخلفية</small></span>
+            <input type="checkbox" id="sw-music" onchange="setMusic(this.checked)"><i class="sw"></i>
+        </label>
+    </div>
 
     <main id="app-content"></main>
     <div id="toast-container"></div>

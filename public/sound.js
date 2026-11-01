@@ -78,13 +78,13 @@
     let tapBuf = null, tapLoading = false;
     const TAP = {
         in:    { rate: 1.0,  vol: 1.0 },  // ضغطة عادية / دخول
-        open:  { rate: 1.0,  vol: 0.9 },  // فتح نافذة
-        tab:   { rate: 1.12, vol: 0.6 },  // تبديل تبويب: أخف وأعلى قليلاً
-        out:   { rate: 0.84, vol: 0.8 },  // رجوع / خروج: أعمق
-        close: { rate: 0.9,  vol: 0.75 }, // إغلاق نافذة
+        open:  { rate: 1.0,  vol: 1.0 },  // فتح نافذة
+        tab:   { rate: 1.05, vol: 0.9 },  // تبديل تبويب: أعلى قليلاً
+        out:   { rate: 0.93, vol: 1.0 },  // رجوع / خروج: أعمق قليلاً
+        close: { rate: 0.96, vol: 0.95 }, // إغلاق نافذة
     };
     // نحمّل الملف مبكراً، ونفك ترميزه عند أول لمسة
-    const tapBytes = fetch('/tap.wav?v=1').then(r => r.ok ? r.arrayBuffer() : Promise.reject()).catch(() => null);
+    const tapBytes = fetch('/tap.wav?v=2').then(r => r.ok ? r.arrayBuffer() : Promise.reject()).catch(() => null);
     function loadTap() {
         if (tapBuf || tapLoading) return;
         tapLoading = true;
@@ -104,8 +104,8 @@
             const v = TAP[kind] || TAP.in;
             const s = ctx.createBufferSource(); s.buffer = tapBuf;
             s.playbackRate.value = v.rate * (1 + (Math.random() - 0.5) * 0.03); // تنويع خفيف حتى لا يملّ
-            const g = ctx.createGain(); g.gain.value = v.vol;
-            s.connect(g); send(g, 1, 0.12);
+            const g = ctx.createGain(); g.gain.value = v.vol * 1.6;
+            s.connect(g); send(g, 1, 0.04);
             s.start(t);
             return;
         }
@@ -216,23 +216,57 @@
 
     const musicOn = () => get('musicOn') === '1';
 
+    const sfxOn = () => get('sfxOff') !== '1';
+
+    // زر الأصوات وقائمته: مفتاح لصوت الضغط ومفتاح للموسيقى
     function updateMusicBtn() {
         const b = document.getElementById('music-btn');
-        if (!b) return;
-        b.classList.toggle('on', musicOn());
-        b.querySelector('.nav-ico').textContent = musicOn() ? '🎶' : '🎵';
-        b.title = musicOn() ? 'إيقاف الموسيقى' : 'تشغيل الموسيقى';
+        const m = musicOn(), on = sfxOn();
+        if (b) {
+            b.classList.toggle('on', m);
+            b.querySelector('.nav-ico').textContent = m ? '🎶' : on ? '🔊' : '🔇';
+        }
+        const sm = document.getElementById('sw-music'), ss = document.getElementById('sw-sfx');
+        if (sm) sm.checked = m;
+        if (ss) ss.checked = on;
     }
 
-    function toggleMusic() {
-        if (musicOn()) {
-            set('musicOn', '0'); stopMusic();
-            if (window.showToast) showToast('تم إيقاف الموسيقى', '🔇');
-        } else {
-            set('musicOn', '1'); startMusic();
-            if (window.showToast) showToast('الموسيقى تعمل الآن', '🎶');
-        }
+    function setMusic(on) {
+        set('musicOn', on ? '1' : '0');
+        if (on) startMusic(); else stopMusic();
         updateMusicBtn();
+    }
+
+    function toggleMusic() { setMusic(!musicOn()); }
+
+    function toggleSfx(on) {
+        set('sfxOff', on ? '0' : '1');
+        updateMusicBtn();
+        if (on) { ensure(); setTimeout(() => sfx('in'), 40); } // نسمعه النغمة مباشرة
+    }
+
+    function placeMenu() {
+        const m = document.getElementById('sound-menu'), b = document.getElementById('music-btn');
+        if (!m || !b) return;
+        const r = b.getBoundingClientRect(), w = m.offsetWidth;
+        const left = Math.min(Math.max(12, r.left + r.width / 2 - w / 2), innerWidth - w - 12);
+        m.style.left = left + 'px';
+        if (r.top > innerHeight / 2) { // الشريط في الأسفل (الجوال): القائمة تظهر فوقه
+            m.style.top = 'auto'; m.style.bottom = (innerHeight - r.top + 10) + 'px';
+        } else {
+            m.style.bottom = 'auto'; m.style.top = (r.bottom + 10) + 'px';
+        }
+    }
+
+    function closeSoundMenu() { document.getElementById('sound-menu')?.classList.remove('show'); }
+
+    function toggleSoundMenu() {
+        const m = document.getElementById('sound-menu');
+        if (!m) return;
+        if (m.classList.contains('show')) { closeSoundMenu(); return; }
+        updateMusicBtn();
+        placeMenu();
+        m.classList.add('show');
     }
 
     // المتصفح يمنع الصوت قبل أول ضغطة، فنشغّل الموسيقى المحفوظة عند أول تفاعل
@@ -272,6 +306,13 @@
         }, true);
         // زر الرجوع في الهاتف أو المتصفح
         addEventListener('popstate', () => { if (get('batchUser')) sfx('out'); });
+        // إغلاق قائمة الأصوات عند الضغط خارجها
+        document.addEventListener('click', e => {
+            const m = document.getElementById('sound-menu');
+            if (m && m.classList.contains('show') && !m.contains(e.target) && !e.target.closest('#music-btn')) closeSoundMenu();
+        });
+        addEventListener('resize', () => { if (document.querySelector('#sound-menu.show')) placeMenu(); });
+        addEventListener('keydown', e => { if (e.key === 'Escape') closeSoundMenu(); });
         // زر Esc يغلق النوافذ المفتوحة
         addEventListener('keydown', e => {
             if (e.key === 'Escape' && (document.querySelector('.modal-overlay[style*="flex"]') || document.querySelector('#lightbox.show'))) sfx('close');
@@ -282,5 +323,8 @@
 
     window.sfx = sfx;
     window.toggleMusic = toggleMusic;
+    window.setMusic = setMusic;
+    window.toggleSfx = toggleSfx;
+    window.toggleSoundMenu = toggleSoundMenu;
     window.hookSounds = hookUI;
 })();

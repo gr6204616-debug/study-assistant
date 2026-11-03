@@ -305,6 +305,7 @@
         .sub-tab-btn { position: relative; z-index: 1; flex: 1; background: transparent; border: none; color: var(--text-muted);
             font-size: 15px; font-weight: 600; cursor: pointer; padding: 9px 14px; border-radius: 10px; transition: color 0.3s; }
         .sub-tab-btn:hover { color: var(--text-main); }
+        .sub-tab-btn .st-ico { margin-left: 6px; }
         .sub-tab-btn.active { color: #fff; }
 
         .modal-overlay {
@@ -480,11 +481,44 @@
         @keyframes popIn { from { opacity: 0; transform: scale(0.6); } }
 
         #lightbox { display: none; position: fixed; inset: 0; background: rgba(2,6,23,0.94); z-index: 10000;
-            justify-content: center; align-items: center; padding: 16px; backdrop-filter: blur(6px); }
+            justify-content: center; align-items: center; padding: 56px 16px; backdrop-filter: blur(6px); touch-action: pan-y pinch-zoom; }
         #lightbox.show { display: flex; animation: fadeIn 0.25s ease both; }
         #lightbox.show img { animation: modalIn 0.4s var(--spring) both; }
         #lightbox img { max-width: 100%; max-height: 100%; border-radius: 12px; box-shadow: 0 30px 80px rgba(0,0,0,0.6); }
-        #lightbox button { position: absolute; top: 12px; right: 16px; background: none; border: none; color: #fff; font-size: 34px; cursor: pointer; }
+        #lightbox .lb-close { position: absolute; top: 8px; right: 14px; background: none; border: none; color: #fff; font-size: 34px; cursor: pointer; }
+        #lightbox .lb-nav { position: absolute; top: 50%; transform: translateY(-50%); width: 46px; height: 46px; border-radius: 50%; border: none;
+            background: rgba(255,255,255,0.12); color: #fff; font-size: 24px; cursor: pointer; display: none; transition: background 0.2s; }
+        #lightbox .lb-nav:hover { background: rgba(255,255,255,0.22); }
+        #lightbox .lb-prev { right: 12px; }
+        #lightbox .lb-next { left: 12px; }
+        #lightbox.multi .lb-nav { display: block; }
+        #lightbox .lb-bar { position: absolute; bottom: 14px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; }
+        #lightbox .lb-count { color: #cbd5e1; font-size: 14px; background: rgba(0,0,0,0.45); padding: 5px 12px; border-radius: 999px; display: none; }
+        #lightbox.multi .lb-count { display: inline-block; }
+        #lightbox .lb-dl { color: #fff; text-decoration: none; font-size: 14px; font-weight: 700; background: rgba(79,140,255,0.85); padding: 7px 16px; border-radius: 999px; }
+
+        /* ---- صور السبورة ---- */
+        .board-new { display: flex; flex-direction: column; gap: 10px; padding: 14px; margin-bottom: 18px; border-radius: 16px;
+            background: rgba(79,140,255,0.06); border: 1px dashed rgba(79,140,255,0.45); }
+        .board-new .input-field { margin: 0; }
+        .board-new .btn { width: auto; align-self: flex-start; padding: 10px 26px; }
+        .board-post { background: var(--item-bg); border: 1px solid var(--border); border-radius: 16px; padding: 14px 16px; margin-bottom: 14px; }
+        .board-head { display: flex; align-items: flex-start; gap: 10px; }
+        .board-title { flex: 1; font-weight: 700; font-size: 16px; color: var(--text-main); word-break: break-word; }
+        .board-meta { color: var(--text-muted); font-size: 12.5px; margin-top: 3px; font-weight: 400; }
+        .board-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+        .board-chip { background: rgba(245,158,11,0.14); color: #fbbf24; padding: 2px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 700; margin-right: 6px; }
+        .board-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 12px; border-radius: 12px; overflow: hidden; }
+        .board-grid.n1 { grid-template-columns: 1fr; }
+        .board-grid.n2, .board-grid.n4 { grid-template-columns: 1fr 1fr; }
+        .board-cell { position: relative; }
+        .board-cell img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; display: block; cursor: zoom-in; background: #0b1020;
+            transition: transform 0.5s var(--ease), filter 0.3s; }
+        .board-grid.n1 .board-cell img { aspect-ratio: auto; max-height: 520px; object-fit: contain; }
+        .board-cell img:hover { filter: brightness(1.1); }
+        .board-cell .img-del { position: absolute; top: 5px; left: 5px; width: 26px; height: 26px; border-radius: 50%; border: none;
+            background: rgba(0,0,0,0.7); color: #fff; cursor: pointer; font-size: 15px; line-height: 1; }
+        .upload-progress { color: var(--text-muted); font-size: 13.5px; }
 
         /* =========================================================
            التنبيهات والإشعارات
@@ -585,7 +619,9 @@
             .media-item:hover { transform: none; }
             .login-wrapper { margin: 6vh auto 30px; }
             .sub-tabs { gap: 2px; }
-            .sub-tab-btn { font-size: 12.5px; padding: 8px 3px; white-space: nowrap; }
+            /* على الجوال: الأيقونة فوق الاسم حتى تتسع الخانات الخمس */
+            .sub-tab-btn { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 11.5px; padding: 7px 2px; white-space: nowrap; }
+            .sub-tab-btn .st-ico { font-size: 18px; line-height: 1.1; margin: 0; }
             .subject-head h1 { font-size: 20px; }
         }
         @media (max-width: 360px) {
@@ -658,8 +694,14 @@
 
     <!-- عرض الصورة بالحجم الكامل -->
     <div id="lightbox" onclick="closeLightbox()">
-        <img id="lightbox-img" alt="">
-        <button aria-label="إغلاق">&times;</button>
+        <img id="lightbox-img" alt="" onclick="event.stopPropagation()">
+        <button class="lb-close" aria-label="إغلاق">&times;</button>
+        <button class="lb-nav lb-prev" aria-label="السابقة" onclick="event.stopPropagation(); lightboxStep(-1)">›</button>
+        <button class="lb-nav lb-next" aria-label="التالية" onclick="event.stopPropagation(); lightboxStep(1)">‹</button>
+        <div class="lb-bar" onclick="event.stopPropagation()">
+            <span class="lb-count" id="lightbox-count"></span>
+            <a class="lb-dl" id="lightbox-dl" href="#" download>⬇️ حفظ الصورة</a>
+        </div>
     </div>
 
     <audio id="notify-sound" src="/notify.mp4" preload="auto"></audio>
@@ -1143,13 +1185,14 @@
         // يفتح الصفحة المطلوبة من رابط مثل #subject-python أو #batch
         function goToHash(rawHash, push = true) {
             const hash = String(rawHash || '').replace(/^#/, '');
-            const subMatch = hash.match(/^subject-(.+)$/);
+            // مثال: #subject-python أو #subject-python/board لفتح تبويب معيّن
+            const subMatch = hash.match(/^subject-([^/]+)(?:\/(\w+))?$/);
             const save = push ? history.pushState.bind(history) : history.replaceState.bind(history);
             if (subMatch && SUBJECTS.some(s => s.id === subMatch[1])) {
                 currentSubjectId = subMatch[1];
                 currentTab = 'subject_details';
-                activeSubTab = 'files';
-                save({ page: 'subject', id: currentSubjectId }, '', '#' + hash);
+                activeSubTab = ['files', 'summaries', 'videos', 'board', 'qa'].includes(subMatch[2]) ? subMatch[2] : 'files';
+                save({ page: 'subject', id: currentSubjectId }, '', '#subject-' + currentSubjectId);
             } else {
                 currentTab = hash === 'batch' ? 'batch' : 'subjects';
                 save({ page: 'main', tab: currentTab }, '', '#' + currentTab);
@@ -1459,8 +1502,9 @@
                     if (badge && currentMax > storedMax) badge.style.display = 'inline-block';
                     const count = document.getElementById(`count-${sub.id}`);
                     if (count) {
-                        const f = info.files || 0, v = info.videos || 0, m = info.summaries || 0;
-                        count.textContent = (f || v || m) ? `${f} ملف${m ? ` • ${m} ملخص` : ''} • ${v} شرح` : 'لا يوجد محتوى بعد';
+                        const f = info.files || 0, v = info.videos || 0, m = info.summaries || 0, b = info.boards || 0;
+                        count.textContent = (f || v || m || b)
+                            ? `${f} ملف${m ? ` • ${m} ملخص` : ''} • ${v} شرح${b ? ` • ${b} سبورة` : ''}` : 'لا يوجد محتوى بعد';
                     }
                 });
             }).catch(() => console.log('فشل فحص التحديثات'));
@@ -1545,22 +1589,24 @@
                     <div class="subject-icon">${sub.icon}</div>
                     <div>
                         <h1>${esc(sub.name)}</h1>
-                        <p>الملفات والملخصات والشروحات والأسئلة الخاصة بالمادة</p>
+                        <p>الملفات والملخصات والشروحات وصور السبورة والأسئلة</p>
                     </div>
                 </div>
                 <div class="card">
                     <div class="sub-tabs">
                         <span class="tab-indicator"></span>
-                        <button class="sub-tab-btn ${activeSubTab === 'files' ? 'active' : ''}" onclick="switchSubTab('files')">📖 الملفات</button>
-                        <button class="sub-tab-btn ${activeSubTab === 'summaries' ? 'active' : ''}" onclick="switchSubTab('summaries')">📝 الملخصات</button>
-                        <button class="sub-tab-btn ${activeSubTab === 'videos' ? 'active' : ''}" onclick="switchSubTab('videos')">▶️ الشروحات</button>
-                        <button class="sub-tab-btn ${activeSubTab === 'qa' ? 'active' : ''}" onclick="switchSubTab('qa')">💬 الأسئلة</button>
+                        <button class="sub-tab-btn ${activeSubTab === 'files' ? 'active' : ''}" onclick="switchSubTab('files')"><span class="st-ico">📖</span><span>الملفات</span></button>
+                        <button class="sub-tab-btn ${activeSubTab === 'summaries' ? 'active' : ''}" onclick="switchSubTab('summaries')"><span class="st-ico">📝</span><span>الملخصات</span></button>
+                        <button class="sub-tab-btn ${activeSubTab === 'videos' ? 'active' : ''}" onclick="switchSubTab('videos')"><span class="st-ico">▶️</span><span>الشروحات</span></button>
+                        <button class="sub-tab-btn ${activeSubTab === 'board' ? 'active' : ''}" onclick="switchSubTab('board')"><span class="st-ico">🖼️</span><span>السبورة</span></button>
+                        <button class="sub-tab-btn ${activeSubTab === 'qa' ? 'active' : ''}" onclick="switchSubTab('qa')"><span class="st-ico">💬</span><span>الأسئلة</span></button>
                     </div>
                     <div id="sub-view-container"></div>
                 </div>
             `;
             requestAnimationFrame(() => slideIndicator(app.querySelector('.tab-indicator'), app.querySelector('.sub-tab-btn.active'), 'tabs'));
             if (activeSubTab === 'qa') fetchQA();
+            else if (activeSubTab === 'board') fetchBoard();
             else fetchMedia(KIND_OF_TAB[activeSubTab] ? activeSubTab : 'files');
         }
 
@@ -1569,12 +1615,12 @@
             activeSubTab = tab;
             const tabs = document.querySelectorAll('.sub-tab-btn');
             if (currentTab !== 'subject_details' || !tabs.length) return render();
-            const order = ['files', 'summaries', 'videos', 'qa'];
+            const order = ['files', 'summaries', 'videos', 'board', 'qa'];
             tabs.forEach((b, i) => b.classList.toggle('active', order[i] === tab));
             slideIndicator(document.querySelector('.tab-indicator'), document.querySelector('.sub-tab-btn.active'), 'tabs');
             const box = document.getElementById('sub-view-container');
             box.classList.remove('page-in'); void box.offsetWidth; box.classList.add('page-in');
-            if (tab === 'qa') fetchQA(); else fetchMedia(tab);
+            if (tab === 'qa') fetchQA(); else if (tab === 'board') fetchBoard(); else fetchMedia(tab);
         }
 
         // ---------- الملفات والملخصات والشروحات ----------
@@ -1957,6 +2003,196 @@
             api(`/api/lectures/${id}`, 'DELETE').then(() => fetchMedia(activeSubTab)).catch(() => alert('تعذر الحذف'));
         }
 
+        // ---------- صور السبورة ----------
+        const MAX_BOARD_IMAGES = 30;
+        let boardPending = [];      // صور مختارة بانتظار الرفع (مضغوطة)
+        let boardUploading = false;
+        window.boardMap = {};
+
+        function fetchBoard() {
+            const container = document.getElementById('sub-view-container');
+            const forSubject = currentSubjectId;
+            container.innerHTML = skeleton(2);
+            api(`/api/board/${encodeURIComponent(forSubject)}`)
+            .then(posts => {
+                if (activeSubTab !== 'board' || currentSubjectId !== forSubject || !document.body.contains(container)) return;
+                posts = posts || [];
+                posts.forEach(p => { window.boardMap[p.id] = p; });
+                const uploader = isAdmin() ? `
+                    <div class="board-new">
+                        <div style="font-weight: 700;">📷 رفع صور سبورة جديدة</div>
+                        <input type="text" id="board-title" class="input-field" maxlength="200" placeholder="الموضوع: مثلاً شرح الحلقات - المحاضرة الثالثة">
+                        <div class="uploader">
+                            <input type="file" id="board-files" accept="image/*" multiple hidden onchange="addBoardImages(this.files); this.value='';">
+                            <input type="file" id="board-camera" accept="image/*" capture="environment" hidden onchange="addBoardImages(this.files); this.value='';">
+                            <button class="upload-btn" onclick="document.getElementById('board-camera').click()">📸 تصوير</button>
+                            <button class="upload-btn" onclick="document.getElementById('board-files').click()">🖼️ من المعرض</button>
+                            <span class="upload-progress" id="board-progress"></span>
+                        </div>
+                        <div class="previews" id="board-previews"></div>
+                        <button class="btn btn-success" id="board-publish-btn" onclick="publishBoard()">نشر الصور</button>
+                    </div>` : '';
+                const list = posts.filter(p => (p.image_ids || []).length || isAdmin());
+                const body = list.length
+                    ? list.map(boardPostHTML).join('')
+                    : `<div class="empty-state">🖼️ لا توجد صور سبورة حتى الآن.</div>`;
+                container.innerHTML = uploader + body;
+                renderBoardPreviews();
+            })
+            .catch(err => {
+                container.innerHTML = `<div class="empty-state" style="color: red;">❌ فشل الاتصال بالخادم (${esc(err.message)}).</div>`;
+            });
+        }
+
+        function boardPostHTML(p) {
+            const ids = p.image_ids || [];
+            const id = Number(p.id);
+            const admin = isAdmin();
+            const when = fmtTime(p.created_at);
+            const cells = ids.map(i => `
+                <div class="board-cell">
+                    <img src="/api/board-images/${Number(i)}" loading="lazy" alt="صورة سبورة" onclick="openLightboxFrom(this)">
+                    ${admin ? `<button class="img-del" title="حذف الصورة" onclick="deleteBoardImage(${Number(i)})">&times;</button>` : ''}
+                </div>`).join('');
+            return `
+                <div class="board-post reveal" id="board-${id}">
+                    <div class="board-head">
+                        <div class="board-title">🖼️ ${esc(p.title)}${admin && !p.published ? '<span class="board-chip">غير منشور</span>' : ''}
+                            <div class="board-meta">${ids.length} صورة${when ? ' • ' + esc(when) : ''}</div>
+                        </div>
+                        <div class="board-actions">
+                            ${p.published ? `<button class="act-icon" title="مشاركة" onclick="shareBoard(${id})">📤</button>` : ''}
+                            ${admin ? `
+                                <input type="file" id="board-more-${id}" accept="image/*" multiple hidden onchange="addMoreBoardImages(${id}, this.files); this.value='';">
+                                <button class="act-icon" title="إضافة صور" onclick="document.getElementById('board-more-${id}').click()">➕</button>
+                                ${!p.published && ids.length ? `<button class="act-icon" title="نشر" onclick="publishBoardPost(${id})">📢</button>` : ''}
+                                <button class="act-icon" title="تعديل الموضوع" onclick="editBoard(${id})">✏️</button>
+                                <button class="btn-delete" title="حذف الموضوع" onclick="deleteBoard(${id})">🗑️</button>` : ''}
+                        </div>
+                    </div>
+                    ${ids.length ? `<div class="board-grid n${Math.min(ids.length, 3) === 3 ? 3 : ids.length}">${cells}</div>`
+                                 : '<div class="board-meta" style="margin-top: 8px;">لا توجد صور بعد.</div>'}
+                </div>`;
+        }
+
+        // صور السبورة تحتاج وضوحاً أعلى للكتابة الصغيرة
+        const compressBoard = f => compressImage(f, 1800, 0.78);
+
+        async function addBoardImages(files) {
+            const list = Array.from(files || []).filter(f => f.type.startsWith('image/'));
+            const prog = document.getElementById('board-progress');
+            for (const [n, f] of list.entries()) {
+                if (boardPending.length >= MAX_BOARD_IMAGES) { showToast(`الحد الأقصى ${MAX_BOARD_IMAGES} صورة`, '⚠️'); break; }
+                if (prog) prog.textContent = `⏳ تجهيز ${n + 1} من ${list.length}...`;
+                try { boardPending.push(await compressBoard(f)); }
+                catch (e) { showToast('تعذر قراءة إحدى الصور', '❌'); }
+            }
+            if (prog) prog.textContent = '';
+            renderBoardPreviews();
+        }
+
+        function removeBoardPending(i) { boardPending.splice(i, 1); renderBoardPreviews(); }
+
+        function renderBoardPreviews() {
+            const box = document.getElementById('board-previews');
+            if (!box) return;
+            box.innerHTML = boardPending.map((src, i) => `
+                <div class="preview"><img src="${src}" alt=""><button onclick="removeBoardPending(${i})" title="إزالة">&times;</button></div>
+            `).join('');
+            const btn = document.getElementById('board-publish-btn');
+            if (btn && !boardUploading) btn.textContent = boardPending.length ? `نشر ${boardPending.length} صورة` : 'نشر الصور';
+        }
+
+        // رفع الصور واحدة واحدة مع إعادة المحاولة مرة عند الفشل
+        async function uploadBoardImages(postId, images, onProgress) {
+            let ok = 0;
+            for (let i = 0; i < images.length; i++) {
+                onProgress(i + 1, images.length);
+                try { await api(`/api/board/${postId}/image`, 'POST', { image: images[i] }); ok++; }
+                catch (e) {
+                    try { await api(`/api/board/${postId}/image`, 'POST', { image: images[i] }); ok++; }
+                    catch (e2) { /* نكمل البقية */ }
+                }
+            }
+            return ok;
+        }
+
+        async function publishBoard() {
+            if (boardUploading) return;
+            const titleEl = document.getElementById('board-title');
+            const title = titleEl.value.trim();
+            if (!title) { titleEl.focus(); return showToast('اكتب موضوع الصور', '⚠️'); }
+            if (!boardPending.length) return showToast('أضف صورة واحدة على الأقل', '⚠️');
+            const btn = document.getElementById('board-publish-btn');
+            const subject = currentSubjectId;
+            const images = boardPending.slice();
+            boardUploading = true;
+            btn.disabled = true;
+            try {
+                const { id } = await api('/api/board/add', 'POST', { subject_id: subject, title });
+                const ok = await uploadBoardImages(id, images, (n, total) => { btn.textContent = `⏳ جاري رفع ${n} من ${total}...`; });
+                if (!ok) throw new Error('upload');
+                btn.textContent = '⏳ جاري النشر...';
+                await api(`/api/board/${id}/publish`, 'POST', {});
+                boardPending = [];
+                titleEl.value = '';
+                showToast(ok === images.length ? 'تم نشر الصور وأُرسل إشعار للطلاب' : `نُشرت ${ok} من ${images.length} صورة`, ok === images.length ? '🎉' : '⚠️');
+                checkForNew(true);
+            } catch (e) {
+                showToast('تعذر الرفع، تحقق من الإنترنت وحاول مجدداً', '❌');
+            } finally {
+                boardUploading = false;
+                btn.disabled = false;
+                if (activeSubTab === 'board' && currentSubjectId === subject) fetchBoard();
+            }
+        }
+
+        async function addMoreBoardImages(postId, files) {
+            const list = Array.from(files || []).filter(f => f.type.startsWith('image/'));
+            if (!list.length) return;
+            showToast(`⏳ جاري رفع ${list.length} صورة...`, '📤');
+            const images = [];
+            for (const f of list) { try { images.push(await compressBoard(f)); } catch (e) {} }
+            const ok = await uploadBoardImages(postId, images, () => {});
+            showToast(ok ? `تمت إضافة ${ok} صورة` : 'تعذر رفع الصور', ok ? '✅' : '❌');
+            fetchBoard();
+        }
+
+        function publishBoardPost(id) {
+            api(`/api/board/${id}/publish`, 'POST', {})
+            .then(() => { showToast('تم النشر وأُرسل إشعار للطلاب', '🎉'); fetchBoard(); })
+            .catch(() => showToast('تعذر النشر', '❌'));
+        }
+
+        function editBoard(id) {
+            const p = window.boardMap[id];
+            if (!p) return;
+            const next = prompt('الموضوع الجديد:', p.title);
+            if (next === null || !next.trim()) return;
+            api(`/api/board/${id}`, 'PUT', { title: next.trim() }).then(fetchBoard).catch(() => showToast('تعذر التعديل', '❌'));
+        }
+
+        function deleteBoard(id) {
+            if (!confirm('حذف الموضوع وكل صوره نهائياً؟')) return;
+            api(`/api/board/${id}`, 'DELETE').then(fetchBoard).catch(() => showToast('تعذر الحذف', '❌'));
+        }
+
+        function deleteBoardImage(imgId) {
+            if (!confirm('حذف هذه الصورة؟')) return;
+            api(`/api/board-images/${imgId}`, 'DELETE').then(fetchBoard).catch(() => showToast('تعذر الحذف', '❌'));
+        }
+
+        function shareBoard(id) {
+            const p = window.boardMap[id];
+            if (!p) return;
+            const sub = SUBJECTS.find(s => s.id === p.subject_id);
+            shareContent({
+                title: p.title,
+                text: `🖼️ صور السبورة: ${p.title}${sub ? ' — ' + sub.name : ''}`,
+                url: `${SITE}/#subject-${p.subject_id}/board`,
+            });
+        }
+
         // ---------- الأسئلة والمراسلة ----------
         function fetchQA() {
             const container = document.getElementById('sub-view-container');
@@ -2109,14 +2345,54 @@
             if (msg.image_url && safeUrl(msg.image_url) !== '#') srcs.push(msg.image_url);
             if (!srcs.length) return '';
             return `<div class="gallery n${Math.min(srcs.length, 6)}">` + srcs.map(s =>
-                `<img src="${esc(s)}" loading="lazy" alt="صورة مرفقة" onclick="openLightbox(this.src)">`).join('') + '</div>';
+                `<img src="${esc(s)}" loading="lazy" alt="صورة مرفقة" onclick="openLightboxFrom(this)">`).join('') + '</div>';
         }
 
-        function openLightbox(src) {
-            document.getElementById('lightbox-img').src = src;
+        // عارض الصور: يدعم التنقل بين صور نفس المجموعة (أسهم، سحب بالإصبع، لوحة المفاتيح) وحفظ الصورة
+        let lbList = [], lbIndex = 0;
+        function openLightbox(src, list) {
+            lbList = (list && list.length) ? list : [src];
+            lbIndex = Math.max(0, lbList.indexOf(src));
+            showLightboxImage();
             document.getElementById('lightbox').classList.add('show');
         }
+        // يفتح الصورة مع بقية صور المجموعة نفسها
+        function openLightboxFrom(img) {
+            const group = img.closest('.gallery, .board-grid');
+            const list = group ? [...group.querySelectorAll('img')].map(i => i.src) : [img.src];
+            openLightbox(img.src, list);
+        }
+        function showLightboxImage() {
+            const src = lbList[lbIndex];
+            document.getElementById('lightbox-img').src = src;
+            document.getElementById('lightbox').classList.toggle('multi', lbList.length > 1);
+            document.getElementById('lightbox-count').textContent = `${lbIndex + 1} / ${lbList.length}`;
+            const dl = document.getElementById('lightbox-dl');
+            dl.href = src;
+            dl.setAttribute('download', 'صورة-' + (src.match(/(\d+)(?:\?.*)?$/) || ['', lbIndex + 1])[1] + '.jpg');
+        }
+        function lightboxStep(d) {
+            if (lbList.length < 2) return;
+            lbIndex = (lbIndex + d + lbList.length) % lbList.length;
+            showLightboxImage();
+        }
         function closeLightbox() { document.getElementById('lightbox').classList.remove('show'); }
+        (function () {
+            const lb = document.getElementById('lightbox');
+            let x0 = null;
+            lb.addEventListener('touchstart', e => { x0 = e.touches.length === 1 ? e.touches[0].clientX : null; }, { passive: true });
+            lb.addEventListener('touchend', e => {
+                if (x0 === null) return;
+                const dx = e.changedTouches[0].clientX - x0;
+                x0 = null;
+                if (Math.abs(dx) > 50) lightboxStep(dx > 0 ? 1 : -1); // السحب لليمين = التالية (الاتجاه عربي)
+            });
+            document.addEventListener('keydown', e => {
+                if (!lb.classList.contains('show')) return;
+                if (e.key === 'ArrowLeft') lightboxStep(1);
+                if (e.key === 'ArrowRight') lightboxStep(-1);
+            });
+        })();
 
         // تصغير الصورة وضغطها في المتصفح قبل الرفع (أسرع وأوفر للإنترنت)
         function compressImage(file, maxSide = 1400, quality = 0.72) {

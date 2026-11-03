@@ -81,6 +81,21 @@ CREATE TABLE IF NOT EXISTS message_images (
     mime TEXT NOT NULL,
     data BYTEA NOT NULL
 );
+CREATE TABLE IF NOT EXISTS board_posts (
+    id SERIAL PRIMARY KEY,
+    subject_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    published BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS board_images (
+    id SERIAL PRIMARY KEY,
+    post_id INTEGER NOT NULL REFERENCES board_posts(id) ON DELETE CASCADE,
+    mime TEXT NOT NULL,
+    data BYTEA NOT NULL
+);
+CREATE INDEX IF NOT EXISTS board_posts_subject_idx ON board_posts (subject_id);
+CREATE INDEX IF NOT EXISTS board_images_post_idx ON board_images (post_id);
 CREATE TABLE IF NOT EXISTS push_subscriptions (
     id SERIAL PRIMARY KEY,
     endpoint TEXT UNIQUE NOT NULL,
@@ -95,6 +110,7 @@ _schema_ready = False
 MSG_MAX = 10000  # الحد الأقصى لطول الرسالة الأسبوعية
 MAX_IMAGES = 6  # أقصى عدد صور مع الرسالة الواحدة
 MAX_IMAGE_BYTES = 2 * 1024 * 1024  # أقصى حجم للصورة بعد الضغط
+MAX_BOARD_IMAGES = 30  # أقصى عدد صور في موضوع السبورة الواحد
 DATA_URL_RE = re.compile(r"^data:(image/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$")
 
 
@@ -460,11 +476,14 @@ def updates_check():
         "COUNT(*) FILTER (WHERE LEFT(title, 7) <> '[VIDEO]' AND LEFT(title, 9) <> '[SUMMARY]') AS files "
         "FROM lectures GROUP BY subject_id"
     )
-    return jsonify({
+    result = {
         r["subject_id"]: {"max_id": r["max_id"], "files": r["files"], "videos": r["videos"],
-                          "summaries": r["summaries"]}
+                          "summaries": r["summaries"], "boards": 0}
         for r in rows
-    })
+    }
+    for r in run("SELECT subject_id, COUNT(*) AS n FROM board_posts WHERE published GROUP BY subject_id"):
+        result.setdefault(r["subject_id"], {"max_id": 0, "files": 0, "videos": 0, "summaries": 0})["boards"] = r["n"]
+    return jsonify(result)
 
 
 @app.get("/api/updates/latest")
@@ -805,6 +824,134 @@ def messages_delete(m_id):
     if denied:
         return denied
     run("DELETE FROM messages WHERE id = %s", (m_id,), fetch=False)
+    return jsonify({"ok": True})
+
+
+# ----------- صور السبورة (لكل مادة، مجمّعة حسب الموضوع) -----------
+# الرفع على مراحل: إنشاء الموضوع ← رفع كل صورة بطلب مستقل (لتجاوز حد حجم الطلب) ← النشر وإرسال الإشعارات
+@app.get("/api/board/<subject>")
+def board_list(subject):
+    only_published = "" if is_admin() else "AND p.published "
+    return jsonify(run(
+        "SELECT p.id, p.subject_id, p.title, p.published, p.created_at, "
+        "ARRAY(SELECT i.id FROM board_images i WHERE i.post_id = p.id ORDER BY i.id) AS image_ids "
+        f"FROM board_posts p WHERE p.subject_id = %s {only_published}ORDER BY p.id DESC",
+        (subject,),
+    ))
+
+
+@app.post("/api/board/add")
+def board_add():
+    denied = admin_only()
+    if denied:
+        return denied
+    d = body()
+    subject = str(d.get("subject_id", "")).strip()
+    title = " ".join(str(d.get("title", "")).split())[:200]
+    if subject not in SUBJECT_NAMES or not title:
+        return jsonify({"error": "اختر المادة واكتب الموضوع"}), 400
+    row = run("INSERT INTO board_posts (subject_id, title) VALUES (%s, %s) RETURNING id", (subject, title))[0]
+    return jsonify(row)
+
+
+@app.post("/api/board/<int:post_id>/image")
+def board_add_image(post_id):
+    denied = admin_only()
+    if denied:
+        return denied
+    try:
+        images = parse_images([body().get("image")])
+    except (ValueError, TypeError) as e:
+        return jsonify({"error": str(e)}), 400
+    if not images:
+        return jsonify({"error": "لا توجد صورة"}), 400
+    mime, data = images[0]
+    rows = run(
+        "INSERT INTO board_images (post_id, mime, data) "
+        "SELECT %s, %s, %s WHERE (SELECT COUNT(*) FROM board_images WHERE post_id = %s) < %s "
+        "AND EXISTS (SELECT 1 FROM board_posts WHERE id = %s) RETURNING id",
+        (post_id, mime, psycopg2.Binary(data), post_id, MAX_BOARD_IMAGES, post_id),
+    )
+    if not rows:
+        return jsonify({"error": f"الحد الأقصى {MAX_BOARD_IMAGES} صورة للموضوع"}), 400
+    return jsonify(rows[0])
+
+
+@app.post("/api/board/<int:post_id>/publish")
+def board_publish(post_id):
+    denied = admin_only()
+    if denied:
+        return denied
+    # ننشر مرة واحدة فقط، والإشعارات تُرسل عند أول نشر
+    rows = run(
+        "UPDATE board_posts SET published = TRUE WHERE id = %s AND NOT published "
+        "AND EXISTS (SELECT 1 FROM board_images WHERE post_id = %s) RETURNING subject_id, title",
+        (post_id, post_id),
+    )
+    if not rows:
+        return jsonify({"success": True, "notified": False})
+    subject, title = rows[0]["subject_id"], rows[0]["title"]
+    name = SUBJECT_NAMES.get(subject, subject)
+
+    try:
+        send_telegram_notification(
+            f"🖼️ <b>صور سبورة جديدة!</b>\n\n"
+            f"📚 المادة: {html.escape(name)}\n"
+            f"📝 الموضوع: {html.escape(title)}\n\n"
+            f"🌐 <b>شاهد كل صور المادة على المنصة:</b>\n<a href='{SITE_URL}'>{SITE_URL}</a>"
+        )
+        imgs = run("SELECT mime, data FROM board_images WHERE post_id = %s ORDER BY id", (post_id,))
+        imgs = [(r["mime"], bytes(r["data"])) for r in imgs]
+        for i in range(0, len(imgs), 10):  # تيليجرام يقبل 10 صور كحد أقصى في الألبوم
+            send_telegram_photos(imgs[i:i + 10])
+    except Exception as e:
+        app.logger.error(f"Telegram Error: {e}")
+
+    try:
+        send_push_all(f"🖼️ صور سبورة جديدة - {name}", title, f"/#subject-{subject}/board", tag=f"board-{subject}")
+    except Exception as e:
+        app.logger.error(f"Push Error: {e}")
+
+    return jsonify({"success": True, "notified": True})
+
+
+@app.put("/api/board/<int:post_id>")
+def board_edit(post_id):
+    denied = admin_only()
+    if denied:
+        return denied
+    title = " ".join(str(body().get("title", "")).split())[:200]
+    if not title:
+        return jsonify({"error": "العنوان فارغ"}), 400
+    run("UPDATE board_posts SET title = %s WHERE id = %s", (title, post_id), fetch=False)
+    return jsonify({"success": True})
+
+
+@app.delete("/api/board/<int:post_id>")
+def board_delete(post_id):
+    denied = admin_only()
+    if denied:
+        return denied
+    run("DELETE FROM board_posts WHERE id = %s", (post_id,), fetch=False)
+    return jsonify({"ok": True})
+
+
+@app.get("/api/board-images/<int:img_id>")
+def board_image(img_id):
+    rows = run("SELECT mime, data FROM board_images WHERE id = %s", (img_id,))
+    if not rows:
+        return jsonify({"error": "الصورة غير موجودة"}), 404
+    resp = Response(bytes(rows[0]["data"]), mimetype=rows[0]["mime"])
+    resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+    return resp
+
+
+@app.delete("/api/board-images/<int:img_id>")
+def board_image_delete(img_id):
+    denied = admin_only()
+    if denied:
+        return denied
+    run("DELETE FROM board_images WHERE id = %s", (img_id,), fetch=False)
     return jsonify({"ok": True})
 
 

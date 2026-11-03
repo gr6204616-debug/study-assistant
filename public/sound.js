@@ -218,21 +218,55 @@
 
     const sfxOn = () => get('sfxOff') !== '1';
 
+    // ---------- موسيقى يوتيوب (مشغّل صغير ظاهر في الزاوية، يشغّل الفيديو من يوتيوب نفسه) ----------
+    const YT_ID = 'qMPd8bv3W5w'; // Mirror's Edge - Main Menu (1 Hour of Music)
+    const ytOn = () => get('ytMusic') === '1';
+
+    function showYT() {
+        if (document.getElementById('yt-player')) return;
+        const box = document.createElement('div');
+        box.id = 'yt-player';
+        box.innerHTML = `
+            <div class="yt-bar">
+                <span>🎧 Mirror's Edge</span>
+                <button class="yt-close" title="إيقاف الموسيقى" onclick="setYT(false)">&times;</button>
+            </div>
+            <iframe src="https://www.youtube-nocookie.com/embed/${YT_ID}?autoplay=1&loop=1&playlist=${YT_ID}&playsinline=1&rel=0"
+                    title="موسيقى الخلفية" allow="autoplay; encrypted-media; picture-in-picture"
+                    referrerpolicy="strict-origin-when-cross-origin"></iframe>`;
+        document.body.appendChild(box);
+    }
+
+    function hideYT() { document.getElementById('yt-player')?.remove(); }
+
+    function setYT(on) {
+        set('ytMusic', on ? '1' : '0');
+        if (on) {
+            if (musicOn()) { set('musicOn', '0'); stopMusic(); } // موسيقى واحدة في نفس الوقت
+            showYT();
+        } else {
+            hideYT();
+        }
+        updateMusicBtn();
+    }
+
     // زر الأصوات وقائمته: مفتاح لصوت الضغط ومفتاح للموسيقى
     function updateMusicBtn() {
         const b = document.getElementById('music-btn');
-        const m = musicOn(), on = sfxOn();
+        const m = musicOn(), on = sfxOn(), yt = ytOn();
         if (b) {
-            b.classList.toggle('on', m);
-            b.querySelector('.nav-ico').textContent = m ? '🎶' : on ? '🔊' : '🔇';
+            b.classList.toggle('on', m || yt);
+            b.querySelector('.nav-ico').textContent = yt ? '🎧' : m ? '🎶' : on ? '🔊' : '🔇';
         }
-        const sm = document.getElementById('sw-music'), ss = document.getElementById('sw-sfx');
+        const sm = document.getElementById('sw-music'), ss = document.getElementById('sw-sfx'), sy = document.getElementById('sw-yt');
         if (sm) sm.checked = m;
         if (ss) ss.checked = on;
+        if (sy) sy.checked = yt;
     }
 
     function setMusic(on) {
         set('musicOn', on ? '1' : '0');
+        if (on && ytOn()) { set('ytMusic', '0'); hideYT(); } // موسيقى واحدة في نفس الوقت
         if (on) startMusic(); else stopMusic();
         updateMusicBtn();
     }
@@ -274,6 +308,7 @@
         const go = () => {
             ['pointerdown', 'keydown'].forEach(e => removeEventListener(e, go, true));
             if (musicOn()) startMusic();
+            if (ytOn()) showYT();
         };
         ['pointerdown', 'keydown'].forEach(e => addEventListener(e, go, true));
     }
@@ -326,5 +361,6 @@
     window.setMusic = setMusic;
     window.toggleSfx = toggleSfx;
     window.toggleSoundMenu = toggleSoundMenu;
+    window.setYT = setYT;
     window.hookSounds = hookUI;
 })();

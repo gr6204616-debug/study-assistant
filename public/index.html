@@ -121,6 +121,17 @@
         .bell-btn.on .nav-ico { animation: ring 1.2s var(--ease) 1; }
         .bell-btn.on { color: #fcd34d; }
         .music-btn.on { color: #c4b5fd; }
+        #yt-player { position: fixed; left: 14px; bottom: 16px; z-index: 300; width: 230px; border-radius: 14px; overflow: hidden;
+            background: rgba(15,22,42,0.97); border: 1px solid var(--border); box-shadow: 0 18px 40px -12px rgba(0,0,0,0.75);
+            animation: popIn 0.35s var(--spring) both; }
+        #yt-player .yt-bar { display: flex; align-items: center; justify-content: space-between; padding: 4px 8px 4px 10px;
+            font-size: 12.5px; color: var(--text-muted); direction: ltr; }
+        #yt-player .yt-close { background: none; border: none; color: var(--text-muted); font-size: 20px; line-height: 1; cursor: pointer; }
+        #yt-player .yt-close:hover { color: #fff; }
+        #yt-player iframe { display: block; width: 100%; aspect-ratio: 16 / 9; border: 0; }
+        @media (max-width: 640px) {
+            #yt-player { left: 10px; width: 190px; bottom: calc(84px + env(safe-area-inset-bottom)); }
+        }
         #sound-menu { position: fixed; z-index: 400; width: 270px; padding: 8px; border-radius: 18px;
             background: rgba(15,22,42,0.97); border: 1px solid var(--border); box-shadow: 0 22px 50px -15px rgba(0,0,0,0.75);
             opacity: 0; transform: translateY(6px) scale(0.97); pointer-events: none; transition: opacity 0.2s, transform 0.25s var(--ease); }
@@ -635,7 +646,7 @@
             html { scroll-behavior: auto; }
         }
     </style>
-    <script src="/sound.js?v=4"></script>
+    <script src="/sound.js?v=5"></script>
 </head>
 <body>
     <!-- خلفية متحركة -->
@@ -674,8 +685,12 @@
             <input type="checkbox" id="sw-sfx" onchange="toggleSfx(this.checked)"><i class="sw"></i>
         </label>
         <label class="snd-row">
-            <span><b>🎶 الموسيقى</b><small>موسيقى هادئة في الخلفية</small></span>
+            <span><b>🎶 موسيقى هادئة</b><small>من الموقع نفسه، بدون إنترنت</small></span>
             <input type="checkbox" id="sw-music" onchange="setMusic(this.checked)"><i class="sw"></i>
+        </label>
+        <label class="snd-row">
+            <span><b>🎧 موسيقى اللعبة</b><small><bdi>Mirror's Edge</bdi> من يوتيوب (تحتاج إنترنت)</small></span>
+            <input type="checkbox" id="sw-yt" onchange="setYT(this.checked)"><i class="sw"></i>
         </label>
     </div>
 

@@ -456,11 +456,13 @@ def updates_check():
     rows = run(
         "SELECT subject_id, MAX(id) AS max_id, "
         "COUNT(*) FILTER (WHERE LEFT(title, 7) = '[VIDEO]') AS videos, "
-        "COUNT(*) FILTER (WHERE LEFT(title, 7) <> '[VIDEO]') AS files "
+        "COUNT(*) FILTER (WHERE LEFT(title, 9) = '[SUMMARY]') AS summaries, "
+        "COUNT(*) FILTER (WHERE LEFT(title, 7) <> '[VIDEO]' AND LEFT(title, 9) <> '[SUMMARY]') AS files "
         "FROM lectures GROUP BY subject_id"
     )
     return jsonify({
-        r["subject_id"]: {"max_id": r["max_id"], "files": r["files"], "videos": r["videos"]}
+        r["subject_id"]: {"max_id": r["max_id"], "files": r["files"], "videos": r["videos"],
+                          "summaries": r["summaries"]}
         for r in rows
     })
 
@@ -504,9 +506,10 @@ def lectures_add():
 
     # --- إرسال الإشعار لجروب تيليجرام ---
     try:
-        clean_title = re.sub(r"^\[(VIDEO|PDF)\]", "", title)
+        clean_title = re.sub(r"^\[(VIDEO|PDF|SUMMARY)\]", "", title)
+        what = "ملخص جديد" if title.startswith("[SUMMARY]") else "ملف جديد"
         msg = (
-            f"📢 <b>تم رفع ملف جديد!</b>\n\n"
+            f"📢 <b>تم رفع {what}!</b>\n\n"
             f"📚 المادة: {html.escape(subject)}\n"
             f"📄 العنوان: {html.escape(clean_title)}\n\n"
             f"🌐 <b>لتحميل الملف والوصول لجميع المواد، ادخل إلى المنصة:</b>\n"
@@ -518,11 +521,16 @@ def lectures_add():
 
     # --- إشعار ينبثق على جوالات الطلاب ---
     try:
-        is_video = title.startswith("[VIDEO]")
+        if title.startswith("[VIDEO]"):
+            label = "🎬 شرح جديد"
+        elif title.startswith("[SUMMARY]"):
+            label = "📝 ملخص جديد"
+        else:
+            label = "📚 ملف جديد"
         name = SUBJECT_NAMES.get(subject, subject)
         send_push_all(
-            f"{'🎬 شرح جديد' if is_video else '📚 ملف جديد'} - {name}",
-            re.sub(r"^\[(VIDEO|PDF)\]", "", title),
+            f"{label} - {name}",
+            re.sub(r"^\[(VIDEO|PDF|SUMMARY)\]", "", title),
             f"/#subject-{subject}",
             tag=f"lec-{subject}",
         )
@@ -979,7 +987,7 @@ def telegram_webhook():
                 if rows:
                     msg = "🔍 <b>تفضل، وجدت هذه الملفات:</b>\n\n"
                     for r in rows:
-                        clean_title = re.sub(r"^\[(VIDEO|PDF)\]", "", r["title"])
+                        clean_title = re.sub(r"^\[(VIDEO|PDF|SUMMARY)\]", "", r["title"])
                         msg += (
                             f"▪️ {html.escape(r['subject_id'])}: "
                             f"<a href='{html.escape(r['file_url'], quote=True)}'>{html.escape(clean_title)}</a>\n"

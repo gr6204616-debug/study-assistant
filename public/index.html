@@ -375,6 +375,7 @@
         .btn-add:hover { transform: translateY(-2px); filter: brightness(1.1); }
         .btn-add-file { background: var(--grad); }
         .btn-add-video { background: linear-gradient(135deg, #f43f5e, #e11d48); }
+        .btn-add-summary { background: linear-gradient(135deg, #10b981, #059669); }
 
         .media-item { background: var(--item-bg); padding: 12px 14px; border-radius: 16px; border: 1px solid var(--border);
             display: flex; align-items: center; gap: 14px; margin-bottom: 10px; flex-wrap: wrap;
@@ -583,7 +584,8 @@
             .media-actions { width: 100%; justify-content: flex-end; }
             .media-item:hover { transform: none; }
             .login-wrapper { margin: 6vh auto 30px; }
-            .sub-tab-btn { font-size: 13.5px; padding: 8px 10px; }
+            .sub-tabs { gap: 2px; }
+            .sub-tab-btn { font-size: 12.5px; padding: 8px 3px; white-space: nowrap; }
             .subject-head h1 { font-size: 20px; }
         }
         @media (max-width: 360px) {
@@ -1102,12 +1104,12 @@
 
             if (lec && prevLec !== null && lec.id > Number(prevLec)) {
                 const sub = SUBJECTS.find(s => s.id === lec.subject_id);
-                const isVid = String(lec.title).startsWith('[VIDEO]');
+                const k = lecKind(lec.title), ui = KIND_UI[k];
                 alerts.push({
-                    icon: isVid ? '🎬' : '📚',
-                    title: isVid ? 'شرح جديد' + (sub ? ' في ' + sub.name : '') : 'ملف جديد' + (sub ? ' في ' + sub.name : ''),
-                    body: String(lec.title).replace(/^\[(VIDEO|PDF)\]/, ''),
-                    target: sub ? { page: 'subject', id: sub.id, sub: isVid ? 'videos' : 'files' } : null,
+                    icon: ui.icon,
+                    title: ui.fresh + (sub ? ' في ' + sub.name : ''),
+                    body: String(lec.title).replace(PREFIX_RE, ''),
+                    target: sub ? { page: 'subject', id: sub.id, sub: TAB_OF[k] } : null,
                 });
             }
             if (msg && prevMsg !== null && msg.id > Number(prevMsg)) {
@@ -1457,8 +1459,8 @@
                     if (badge && currentMax > storedMax) badge.style.display = 'inline-block';
                     const count = document.getElementById(`count-${sub.id}`);
                     if (count) {
-                        const f = info.files || 0, v = info.videos || 0;
-                        count.textContent = (f || v) ? `${f} ملف • ${v} شرح` : 'لا يوجد محتوى بعد';
+                        const f = info.files || 0, v = info.videos || 0, m = info.summaries || 0;
+                        count.textContent = (f || v || m) ? `${f} ملف${m ? ` • ${m} ملخص` : ''} • ${v} شرح` : 'لا يوجد محتوى بعد';
                     }
                 });
             }).catch(() => console.log('فشل فحص التحديثات'));
@@ -1543,13 +1545,14 @@
                     <div class="subject-icon">${sub.icon}</div>
                     <div>
                         <h1>${esc(sub.name)}</h1>
-                        <p>الملفات والشروحات والأسئلة الخاصة بالمادة</p>
+                        <p>الملفات والملخصات والشروحات والأسئلة الخاصة بالمادة</p>
                     </div>
                 </div>
                 <div class="card">
                     <div class="sub-tabs">
                         <span class="tab-indicator"></span>
                         <button class="sub-tab-btn ${activeSubTab === 'files' ? 'active' : ''}" onclick="switchSubTab('files')">📖 الملفات</button>
+                        <button class="sub-tab-btn ${activeSubTab === 'summaries' ? 'active' : ''}" onclick="switchSubTab('summaries')">📝 الملخصات</button>
                         <button class="sub-tab-btn ${activeSubTab === 'videos' ? 'active' : ''}" onclick="switchSubTab('videos')">▶️ الشروحات</button>
                         <button class="sub-tab-btn ${activeSubTab === 'qa' ? 'active' : ''}" onclick="switchSubTab('qa')">💬 الأسئلة</button>
                     </div>
@@ -1557,9 +1560,8 @@
                 </div>
             `;
             requestAnimationFrame(() => slideIndicator(app.querySelector('.tab-indicator'), app.querySelector('.sub-tab-btn.active'), 'tabs'));
-            if (activeSubTab === 'files') fetchMedia('files');
-            else if (activeSubTab === 'videos') fetchMedia('videos');
-            else fetchQA();
+            if (activeSubTab === 'qa') fetchQA();
+            else fetchMedia(KIND_OF_TAB[activeSubTab] ? activeSubTab : 'files');
         }
 
         // تبديل التبويب داخل المادة بدون إعادة رسم الصفحة كلها (كي ينزلق المؤشر بسلاسة)
@@ -1567,7 +1569,7 @@
             activeSubTab = tab;
             const tabs = document.querySelectorAll('.sub-tab-btn');
             if (currentTab !== 'subject_details' || !tabs.length) return render();
-            const order = ['files', 'videos', 'qa'];
+            const order = ['files', 'summaries', 'videos', 'qa'];
             tabs.forEach((b, i) => b.classList.toggle('active', order[i] === tab));
             slideIndicator(document.querySelector('.tab-indicator'), document.querySelector('.sub-tab-btn.active'), 'tabs');
             const box = document.getElementById('sub-view-container');
@@ -1575,7 +1577,25 @@
             if (tab === 'qa') fetchQA(); else fetchMedia(tab);
         }
 
-        // ---------- الملفات والشروحات ----------
+        // ---------- الملفات والملخصات والشروحات ----------
+        // كل نوع يُميَّز ببادئة في عنوانه داخل قاعدة البيانات
+        const PREFIX_RE = /^\[(VIDEO|PDF|SUMMARY)\]/;
+        const KIND_PREFIX = { pdf: '[PDF]', video: '[VIDEO]', summary: '[SUMMARY]' };
+        const TAB_OF = { pdf: 'files', video: 'videos', summary: 'summaries' };
+        const KIND_OF_TAB = { files: 'pdf', videos: 'video', summaries: 'summary' };
+        const KIND_UI = {
+            pdf:     { icon: '📚', count: 'ملف دراسي', add: 'إضافة ملف', btn: 'btn-add-file', empty: '📂 لا توجد ملفات دراسية حتى الآن.',
+                       search: 'ابحث في الملفات...', open: '📖 فتح', modal: '📖 إضافة ملف دراسي', color: 'var(--primary)', fresh: 'ملف جديد' },
+            summary: { icon: '📝', count: 'ملخص', add: 'إضافة ملخص', btn: 'btn-add-summary', empty: '📝 لا توجد ملخصات حتى الآن.',
+                       search: 'ابحث في الملخصات...', open: '📖 فتح', modal: '📝 إضافة ملخص', color: '#10b981', fresh: 'ملخص جديد' },
+            video:   { icon: '🎬', count: 'شرح فيديو', add: 'إضافة فيديو', btn: 'btn-add-video', empty: '🎬 لا توجد شروحات فيديو حتى الآن.',
+                       search: 'ابحث في الشروحات...', open: '▶️ مشاهدة', modal: '▶️ إضافة شرح فيديو', color: 'var(--danger)', fresh: 'شرح جديد' },
+        };
+        const lecKind = title => {
+            const t = String(title || '');
+            return t.startsWith('[VIDEO]') ? 'video' : t.startsWith('[SUMMARY]') ? 'summary' : 'pdf';
+        };
+
         window.lectureMap = {};
 
         function linkKind(url, isVideo) {
@@ -1598,33 +1618,31 @@
         function fetchMedia(mediaType) {
             const container = document.getElementById('sub-view-container');
             container.innerHTML = skeleton(3);
-            const isVid = mediaType === 'videos';
+            const kind = KIND_OF_TAB[mediaType] || 'pdf', ui = KIND_UI[kind];
+            const isVid = kind === 'video';
 
             const forSubject = currentSubjectId;
             api(`/api/lectures/${encodeURIComponent(currentSubjectId)}`)
             .then(data => {
                 // تجاهل الرد إذا انتقل الطالب لتبويب أو مادة أخرى قبل وصوله
                 if (activeSubTab !== mediaType || currentSubjectId !== forSubject || !document.body.contains(container)) return;
-                const isVideoTitle = t => String(t).startsWith('[VIDEO]');
-                const list = (data || []).filter(item => isVid ? isVideoTitle(item.title) : !isVideoTitle(item.title));
+                const list = (data || []).filter(item => lecKind(item.title) === kind);
                 list.forEach(item => { window.lectureMap[item.id] = item; });
 
                 const toolbar = isAdmin() ? `
                     <div class="toolbar">
-                        <div class="toolbar-info">${isVid ? '🎬' : '📚'} ${list.length} ${isVid ? 'شرح فيديو' : 'ملف دراسي'}</div>
-                        <button class="btn-add ${isVid ? 'btn-add-video' : 'btn-add-file'}" onclick="openAddModal('${isVid ? 'video' : 'pdf'}')">
-                            ➕ ${isVid ? 'إضافة فيديو' : 'إضافة ملف'}
-                        </button>
+                        <div class="toolbar-info">${ui.icon} ${list.length} ${ui.count}</div>
+                        <button class="btn-add ${ui.btn}" onclick="openAddModal('${kind}')">➕ ${ui.add}</button>
                     </div>` : '';
 
                 const listBody = list.length === 0
-                    ? `<div class="empty-state">${isVid ? '🎬 لا توجد شروحات فيديو حتى الآن.' : '📂 لا توجد ملفات دراسية حتى الآن.'}</div>`
+                    ? `<div class="empty-state">${ui.empty}</div>`
                     : `<div id="sortable-list">${list.map(item => createItemHTML(item, isVid)).join('')}</div>
                        <div class="empty-state no-results" id="no-results">🔍 لا توجد نتائج مطابقة.</div>`;
 
                 const search = list.length > 3 ? `
                     <div class="search-box">
-                        <input type="search" class="input-field" placeholder="${isVid ? 'ابحث في الشروحات...' : 'ابحث في الملفات...'}" oninput="filterMedia(this.value)">
+                        <input type="search" class="input-field" placeholder="${ui.search}" oninput="filterMedia(this.value)">
                     </div>` : '';
 
                 container.innerHTML = toolbar + search + listBody;
@@ -1647,10 +1665,8 @@
                 container.innerHTML = `
                     ${isAdmin() ? `
                     <div class="toolbar">
-                        <div class="toolbar-info">${isVid ? '🎬' : '📚'} تعذر تحميل القائمة</div>
-                        <button class="btn-add ${isVid ? 'btn-add-video' : 'btn-add-file'}" onclick="openAddModal('${isVid ? 'video' : 'pdf'}')">
-                            ➕ ${isVid ? 'إضافة فيديو' : 'إضافة ملف'}
-                        </button>
+                        <div class="toolbar-info">${ui.icon} تعذر تحميل القائمة</div>
+                        <button class="btn-add ${ui.btn}" onclick="openAddModal('${kind}')">➕ ${ui.add}</button>
                     </div>` : ''}
                     <div class="empty-state" style="color: red;">❌ فشل الاتصال بالخادم (${esc(err.message)}).</div>`;
             });
@@ -1670,7 +1686,7 @@
 
         function createItemHTML(item, isVid) {
             const kind = linkKind(item.file_url, isVid);
-            const rawTitle = item.title.replace(/^\[(VIDEO|PDF)\]/, '');
+            const rawTitle = item.title.replace(PREFIX_RE, '');
             const title = esc(rawTitle);
             const id = Number(item.id);
             const yt = youtubeId(item.file_url);
@@ -1683,7 +1699,7 @@
                     ${icon}
                     <div class="media-info">
                         <div class="media-title">${title}</div>
-                        <div class="media-meta">${kind.label}</div>
+                        <div class="media-meta">${lecKind(item.title) === 'summary' ? '📝 ملخص • ' : ''}${kind.label}</div>
                     </div>
                     <div class="media-actions">
                         <a class="act-open" style="background: ${kind.color};" href="${esc(safeUrl(item.file_url))}" target="_blank" rel="noopener noreferrer">
@@ -1802,7 +1818,7 @@
             document.getElementById('sharein-subjects').innerHTML = SUBJECTS.map(s => `
                 <button class="chip-pick ${shareIn.subject === s.id ? 'selected' : ''}" style="--c: ${s.color};"
                         onclick="shareIn.subject='${s.id}'; renderShareInChips();">${s.icon} ${s.name}</button>`).join('');
-            document.getElementById('sharein-type').innerHTML = [['video', '▶️ شرح فيديو'], ['pdf', '📖 ملف']].map(([v, l]) => `
+            document.getElementById('sharein-type').innerHTML = [['video', '▶️ شرح فيديو'], ['pdf', '📖 ملف'], ['summary', '📝 ملخص']].map(([v, l]) => `
                 <button class="chip-pick ${shareIn.type === v ? 'selected' : ''}" onclick="shareIn.type='${v}'; renderShareInChips();">${l}</button>`).join('');
         }
 
@@ -1839,12 +1855,12 @@
                 if (isAdmin()) {
                     const type = shareIn.type;
                     await api('/api/lectures/add', 'POST', {
-                        subject_id: subject, title: (type === 'video' ? '[VIDEO]' : '[PDF]') + title, file_url: shareIn.url, type,
+                        subject_id: subject, title: (KIND_PREFIX[type] || '[PDF]') + title, file_url: shareIn.url, type,
                     });
                     showToast('تمت الإضافة وأُرسل إشعار للطلاب', '🎉');
                     checkForNew(true);
                     closeShareIn();
-                    openSubject(subject, type === 'video' ? 'videos' : 'files');
+                    openSubject(subject, TAB_OF[type] || 'files');
                 } else {
                     const note = document.getElementById('sharein-note').value.trim();
                     const q = `${note ? note + '\n\n' : ''}🎬 ${title || 'رابط مفيد'}\n${shareIn.url}`.slice(0, 1000);
@@ -1864,12 +1880,12 @@
         function shareLecture(id) {
             const item = window.lectureMap[id];
             if (!item) return;
-            const isVid = String(item.title).startsWith('[VIDEO]');
+            const icon = KIND_UI[lecKind(item.title)].icon;
             const sub = SUBJECTS.find(s => s.id === item.subject_id);
-            const title = item.title.replace(/^\[(VIDEO|PDF)\]/, '');
+            const title = item.title.replace(PREFIX_RE, '');
             shareContent({
                 title,
-                text: `${isVid ? '🎬' : '📚'} ${title}${sub ? ' — ' + sub.name : ''}\n📲 كل ملفات المادة: ${SITE}/#subject-${item.subject_id}`,
+                text: `${icon} ${title}${sub ? ' — ' + sub.name : ''}\n📲 كل ملفات المادة: ${SITE}/#subject-${item.subject_id}`,
                 url: item.file_url,
             });
         }
@@ -1897,7 +1913,7 @@
         function editLecture(id) {
             const item = window.lectureMap[id];
             if (!item) return;
-            const prefix = (item.title.match(/^\[(VIDEO|PDF)\]/) || [''])[0];
+            const prefix = (item.title.match(PREFIX_RE) || [''])[0];
             const current = item.title.slice(prefix.length);
             const next = prompt('عنوان جديد:', current);
             if (next === null || !next.trim()) return;
@@ -1909,10 +1925,10 @@
         function openAddModal(type) {
             document.getElementById('addModal').style.display = 'flex';
             document.getElementById('modal-type').value = type;
-            document.getElementById('modal-title').innerText = type === 'pdf' ? '📖 إضافة ملف دراسي' : '▶️ إضافة شرح فيديو';
+            document.getElementById('modal-title').innerText = (KIND_UI[type] || KIND_UI.pdf).modal;
             document.getElementById('modal-title-input').value = '';
             document.getElementById('modal-url-input').value = '';
-            document.getElementById('save-btn').style.background = type === 'pdf' ? 'var(--primary)' : 'var(--danger)';
+            document.getElementById('save-btn').style.background = (KIND_UI[type] || KIND_UI.pdf).color;
             setTimeout(() => document.getElementById('modal-title-input').focus(), 50);
         }
 
@@ -1926,12 +1942,12 @@
             if (!title || !url) return alert('يرجى ملء جميع الحقول');
             if (!/^https?:\/\//i.test(url)) return alert('الرابط يجب أن يبدأ بـ http:// أو https://');
 
-            const finalTitle = type === 'video' ? `[VIDEO]${title}` : `[PDF]${title}`;
+            const finalTitle = (KIND_PREFIX[type] || '[PDF]') + title;
             const btn = document.getElementById('save-btn');
             btn.innerText = 'جاري الحفظ...'; btn.disabled = true;
 
             api('/api/lectures/add', 'POST', { subject_id: currentSubjectId, title: finalTitle, file_url: url, type })
-            .then(() => { closeAddModal(); fetchMedia(type === 'pdf' ? 'files' : 'videos'); checkForNew(true); })
+            .then(() => { closeAddModal(); fetchMedia(TAB_OF[type] || 'files'); checkForNew(true); })
             .catch(() => alert('خطأ في الإضافة'))
             .finally(() => { btn.innerText = 'حفظ ونشر'; btn.disabled = false; });
         }
